@@ -1,0 +1,63 @@
+timezone: Europe/Paris
+
+sourceFeed:
+  url: "https://example.edu/timetable/my-calendar.ics"
+  fetchTimeoutSeconds: 15
+  maxResponseBytes: 5000000
+
+studyWindows:
+  weekdays:
+    - start: "11:30"
+      end: "21:00"
+
+  weekends:
+    - start: "10:00"
+      end: "14:00"
+    - start: "20:00"
+      end: "22:00"
+
+grid:
+  blockMinutes: 15
+  sessionMinutes: 90
+  minBufferMinutes: 15
+
+reviews:
+  - name: near
+    targetOffsetDays: 1
+    flexibilityDays: 1
+  - name: far
+    targetOffsetDays: 7
+    flexibilityDays: 3
+
+workload:
+  preferredDailyMinutes: 180
+  maxDailyMinutes: 270
+  classLoadAdjustment:
+    enabled: true
+    minutesReducedPerClassHour: 30
+    floorMinutes: 30
+
+assessments:
+  file: "./schedule.js"
+  protectedTypes: ["partiel"]
+
+# Optional statically configured blocked periods (travel, family
+# commitments, etc). Empty by default. Example:
+# blockedPeriods:
+#   - startUtc: "2026-10-20T00:00:00.000Z"
+#     endUtc: "2026-10-22T00:00:00.000Z"
+#     reason: "Away for a wedding"
+blockedPeriods: []
+
+examProtection:
+  scope: all-subjects
+  blackoutDays: 7
+  pullForwardMaxDays: 6
+
+horizon:
+  lookaheadDays: 60
+  lookbackDays: 14
+
+regeneration:
+  cronTime: "05:00"
+  cronTimezone: Europe/Paris

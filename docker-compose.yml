@@ -1,0 +1,27 @@
+services:
+  study-scheduler:
+    build: .
+    container_name: study-scheduler
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOST=0.0.0.0
+      - STUDY_CONFIG_PATH=./config/default.yaml
+      - STUDY_DB_PATH=/app/data/study-scheduler.db
+      - STUDY_DOMAIN=${STUDY_DOMAIN:-study-scheduler.local}
+      - STUDY_FEED_URL=${STUDY_FEED_URL}
+      - STUDY_FEED_TOKEN=${STUDY_FEED_TOKEN}
+      - STUDY_ADMIN_TOKEN=${STUDY_ADMIN_TOKEN}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+    volumes:
+      - study-data:/app/data
+      # Edit schedule.js on the host and it will be picked up on the next
+      # regeneration (cron, or POST /admin/regenerate) without a rebuild.
+      - ./schedule.js:/app/schedule.js:ro
+      - ./config/default.yaml:/app/config/default.yaml:ro
+
+volumes:
+  study-data:
