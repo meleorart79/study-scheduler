@@ -1,10 +1,31 @@
 import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 
 export class FeedFetchError extends Error {}
 
 export interface FetchedFeed {
   text: string;
   hash: string;
+}
+
+/**
+ * Reads the university ICS timetable from a local file instead of fetching
+ * a URL. Used when `sourceFeed.file` is configured. Enforces the same
+ * `maxBytes` cap as the HTTP path (protects against accidentally pointing
+ * this at something huge, and keeps behavior consistent between the two
+ * input modes).
+ */
+export function readIcsFeedFromFile(path: string, maxBytes: number): FetchedFeed {
+  let text: string;
+  try {
+    text = readFileSync(path, "utf8");
+  } catch (err) {
+    throw new FeedFetchError(
+      `Failed to read feed file "${path}": ${(err as Error).message}`
+    );
+  }
+  assertSize(text, maxBytes, path);
+  return { text, hash: hashOf(text) };
 }
 
 /**
@@ -74,9 +95,13 @@ export async function fetchIcsFeed(
   }
 }
 
-function assertSize(text: string, maxBytes: number) {
+function assertSize(text: string, maxBytes: number, path?: string) {
   if (Buffer.byteLength(text, "utf8") > maxBytes) {
-    throw new FeedFetchError(`Feed response exceeded max size of ${maxBytes} bytes`);
+    throw new FeedFetchError(
+      path
+        ? `Feed file "${path}" exceeded max size of ${maxBytes} bytes`
+        : `Feed response exceeded max size of ${maxBytes} bytes`
+    );
   }
 }
 

@@ -1,13 +1,13 @@
 import { randomUUID, createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { fetchIcsFeed, FeedFetchError } from "./ics-input/fetch.js";
+import { fetchIcsFeed, readIcsFeedFromFile, FeedFetchError } from "./ics-input/fetch.js";
 import { parseIcsFeed } from "./ics-input/parse.js";
 import { normalizeSourceEvents } from "./normalization/normalize.js";
 import { loadScheduleFile, AssessmentLoadError } from "./assessments/loadSchedule.js";
 import { toDomainAssessments } from "./assessments/blackout.js";
 import { blockedPeriodsFromConfig } from "./scheduling/blockedPeriods.js";
 import { runScheduling } from "./scheduling/engine.js";
-import { generateStudyIcs } from "./ics-output/generate.js";
+import { generateStudyIcs, generateSchoolIcs } from "./ics-output/generate.js";
 import { localMidnightUtc, addDaysToDateString, localDateString } from "./util/timezone.js";
 import type { RunTrigger, SchedulingRun } from "./types.js";
 import type { Repository } from "./state/repository.js";
@@ -63,11 +63,15 @@ async function runOnce(deps: PipelineDeps, trigger: RunTrigger): Promise<Schedul
 
   try {
     // --- 1. Fetch feed (input only; never re-served/modified) ---
-    const feed = await fetchIcsFeed(
-      config.sourceFeed.url,
-      config.sourceFeed.fetchTimeoutSeconds,
-      config.sourceFeed.maxResponseBytes
-    );
+    // Either read a local .ics file (sourceFeed.file) or fetch a URL
+    // (sourceFeed.url) -- the config schema guarantees exactly one is set.
+    const feed = config.sourceFeed.file
+      ? readIcsFeedFromFile(config.sourceFeed.file, config.sourceFeed.maxResponseBytes)
+      : await fetchIcsFeed(
+          config.sourceFeed.url!,
+          config.sourceFeed.fetchTimeoutSeconds,
+          config.sourceFeed.maxResponseBytes
+        );
 
     // --- 2. Load schedule.js (sole source of truth for assessments) ---
     const schedule = loadScheduleFile(config.assessments.file);
@@ -151,10 +155,18 @@ async function runOnce(deps: PipelineDeps, trigger: RunTrigger): Promise<Schedul
     repo.replaceStudySessions(output.sessions);
     repo.setKv("last_run_signature", signature);
 
-    // --- 8. Generate ICS and cache as "last known good" ---
-    const ics = generateStudyIcs(output.sessions, config, { domain });
-    repo.setKv("last_good_ics", ics);
+    // --- 8. Generate both ICS feeds and cache each as "last known good" ---
+    // Two independent feeds: the untouched school timetable, and the
+    // generated study sessions. Kept as separate cached values (and thus
+    // separate subscription URLs) so a failure/rebuild of one never
+    // affects what's being served for the other.
+    const studyIcs = generateStudyIcs(output.sessions, config, { domain });
+    repo.setKv("last_good_ics", studyIcs);
     repo.setKv("last_good_ics_generated_at", nowIso);
+
+    const schoolIcs = generateSchoolIcs(sourceEvents, config, { domain });
+    repo.setKv("last_good_school_ics", schoolIcs);
+    repo.setKv("last_good_school_ics_generated_at", nowIso);
 
     run.status = "SUCCESS";
     run.finishedAt = new Date().toISOString();

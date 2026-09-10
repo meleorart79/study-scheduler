@@ -15,11 +15,17 @@ const timeWindowSchema = z
 
 export const configSchema = z.object({
   timezone: z.string().min(1),
-  sourceFeed: z.object({
-    url: z.string().url(),
-    fetchTimeoutSeconds: z.number().int().positive().default(15),
-    maxResponseBytes: z.number().int().positive().default(5_000_000),
-  }),
+  sourceFeed: z
+    .object({
+      url: z.string().url().optional(),
+      file: z.string().min(1).optional(),
+      fetchTimeoutSeconds: z.number().int().positive().default(15),
+      maxResponseBytes: z.number().int().positive().default(5_000_000),
+    })
+    .refine((v) => !!v.url !== !!v.file, {
+      message:
+        "sourceFeed: set exactly one of `url` (fetch over HTTP) or `file` (read a local .ics file), not both/neither",
+    }),
   studyWindows: z.object({
     weekdays: z.array(timeWindowSchema).min(1),
     weekends: z.array(timeWindowSchema).min(1),

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { generateStudyIcs } from "../src/ics-output/generate.js";
-import { baseConfig } from "./helpers.js";
+import { generateStudyIcs, generateSchoolIcs } from "../src/ics-output/generate.js";
+import { baseConfig, makeSourceEvent } from "./helpers.js";
 import type { StudySession } from "../src/types.js";
 
 function session(overrides: Partial<StudySession> = {}): StudySession {
@@ -95,5 +95,32 @@ describe("ICS output", () => {
   it("produces valid CRLF line endings per RFC 5545", () => {
     const ics = generateStudyIcs([session()], config, { domain: "example.test" });
     expect(ics.includes("\r\n")).toBe(true);
+  });
+});
+
+describe("school ICS output (pure timetable pass-through)", () => {
+  it("produces a standards-shaped VCALENDAR containing the source events, no study sessions", () => {
+    const events = [
+      makeSourceEvent({ canonicalId: "algo-1", summary: "Algorithms Lecture" }),
+      makeSourceEvent({ canonicalId: "db-1", summary: "Databases TD" }),
+    ];
+    const ics = generateSchoolIcs(events, config, { domain: "example.test" });
+    expect(ics).toContain("BEGIN:VCALENDAR");
+    expect(ics).toContain("BEGIN:VEVENT");
+    expect(ics).toContain("UID:school-algo-1@example.test");
+    expect(ics).toContain("UID:school-db-1@example.test");
+    expect(ics).toContain("SUMMARY:Algorithms Lecture");
+    expect(ics).toContain("SUMMARY:Databases TD");
+    expect(ics).not.toContain("Review 1");
+    expect(ics).not.toContain("UID:study-");
+    expect(ics).toContain("END:VCALENDAR");
+  });
+
+  it("is independent of the study feed's UID namespace (school-/study- never collide)", () => {
+    const ics = generateSchoolIcs([makeSourceEvent({ canonicalId: "abc" })], config, {
+      domain: "example.test",
+    });
+    expect(ics).toContain("UID:school-abc@example.test");
+    expect(ics).not.toContain("UID:study-abc");
   });
 });

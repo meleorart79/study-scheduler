@@ -25,17 +25,38 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
   app.get("/health", async () => ({ status: "ok" }));
 
   app.get<{ Querystring: { token?: string } }>("/feeds/study.ics", async (req, reply) => {
-    if (req.query.token !== feedToken) {
+    return serveCachedIcs(reply, req.headers["if-none-match"], req.query.token, {
+      token: feedToken,
+      icsKey: "last_good_ics",
+      generatedAtKey: "last_good_ics_generated_at",
+    });
+  });
+
+  app.get<{ Querystring: { token?: string } }>("/feeds/school.ics", async (req, reply) => {
+    return serveCachedIcs(reply, req.headers["if-none-match"], req.query.token, {
+      token: feedToken,
+      icsKey: "last_good_school_ics",
+      generatedAtKey: "last_good_school_ics_generated_at",
+    });
+  });
+
+  function serveCachedIcs(
+    reply: any,
+    ifNoneMatch: string | string[] | undefined,
+    providedToken: string | undefined,
+    opts: { token: string; icsKey: string; generatedAtKey: string }
+  ) {
+    if (providedToken !== opts.token) {
       return reply.code(403).send({ error: "invalid or missing token" });
     }
-    const ics = repo.getKv("last_good_ics");
+    const ics = repo.getKv(opts.icsKey);
     if (!ics) {
       return reply.code(503).send({ error: "No calendar has been generated yet" });
     }
     const etag = `"${createHash("sha256").update(ics).digest("hex").slice(0, 32)}"`;
-    const generatedAt = repo.getKv("last_good_ics_generated_at") ?? new Date().toISOString();
+    const generatedAt = repo.getKv(opts.generatedAtKey) ?? new Date().toISOString();
 
-    if (req.headers["if-none-match"] === etag) {
+    if (ifNoneMatch === etag) {
       return reply.code(304).send();
     }
 
@@ -44,7 +65,7 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
     reply.header("Last-Modified", new Date(generatedAt).toUTCString());
     reply.header("Cache-Control", "no-cache");
     return reply.send(ics);
-  });
+  }
 
   // --- admin auth guard ---
   app.addHook("onRequest", async (req, reply) => {

@@ -8,7 +8,7 @@ export class ConfigError extends Error {}
 /**
  * Loads config from a YAML file, with a small number of environment
  * variable overrides for secrets/deployment-specific values that
- * shouldn't live in the checked-in YAML (feed URL, feed token).
+ * shouldn't live in the checked-in YAML (feed URL/file, feed token).
  */
 export function loadConfig(path: string): Config {
   if (!existsSync(path)) {
@@ -34,8 +34,21 @@ function mergeEnvOverrides(raw: unknown): unknown {
     typeof raw === "object" && raw !== null ? raw : {}
   ) as Record<string, any>;
 
-  if (process.env.STUDY_FEED_URL) {
-    obj.sourceFeed = { ...(obj.sourceFeed ?? {}), url: process.env.STUDY_FEED_URL };
+  // STUDY_FEED_FILE takes precedence over STUDY_FEED_URL if both happen to
+  // be set, and clears the other field so the schema's "exactly one of
+  // url/file" refinement doesn't reject a leftover value from the YAML.
+  if (process.env.STUDY_FEED_FILE) {
+    obj.sourceFeed = {
+      ...(obj.sourceFeed ?? {}),
+      file: process.env.STUDY_FEED_FILE,
+      url: undefined,
+    };
+  } else if (process.env.STUDY_FEED_URL) {
+    obj.sourceFeed = {
+      ...(obj.sourceFeed ?? {}),
+      url: process.env.STUDY_FEED_URL,
+      file: undefined,
+    };
   }
   return obj;
 }

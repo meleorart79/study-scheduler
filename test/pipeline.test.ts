@@ -54,6 +54,9 @@ function setupTestEnv() {
   const db = openDatabase(":memory:");
   const repo = new Repository(db);
   const config = baseConfig((c) => {
+    // Default config now ships in file-based mode (sourceFeed.file); these
+    // tests exercise the URL-fetch path specifically, so switch back to it.
+    c.sourceFeed.file = undefined;
     c.sourceFeed.url = `http://127.0.0.1:${port}/feed.ics`;
     c.assessments.file = schedulePath;
   });
@@ -72,6 +75,57 @@ describe("pipeline: regenerate", () => {
     const run = await regenerate({ repo, configHolder, domain: "test.local", logger }, "startup");
     expect(run.status).toBe("SUCCESS");
     expect(repo.getKv("last_good_ics")).toContain("BEGIN:VCALENDAR");
+    expect(repo.getKv("last_good_school_ics")).toContain("BEGIN:VCALENDAR");
+    expect(repo.getKv("last_good_school_ics")).toContain("Algorithms Lecture");
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("reads the source feed from a local file when sourceFeed.file is set instead of a URL", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "pipeline-test-file-"));
+    const schedulePath = path.join(dir, "schedule.js");
+    writeFileSync(
+      schedulePath,
+      `module.exports = { EXAM_SCHEDULE: [], SEMESTER_START: "2026-09-01" };`
+    );
+    const icsPath = path.join(dir, "school-schedule.ics");
+    writeFileSync(icsPath, SAMPLE_ICS);
+
+    const db = openDatabase(":memory:");
+    const repo = new Repository(db);
+    const config = baseConfig((c) => {
+      c.sourceFeed.url = undefined;
+      c.sourceFeed.file = icsPath;
+      c.assessments.file = schedulePath;
+    });
+    const configHolder = new ConfigHolder(config, repo);
+
+    const run = await regenerate({ repo, configHolder, domain: "test.local", logger }, "startup");
+    expect(run.status).toBe("SUCCESS");
+    expect(repo.getKv("last_good_ics")).toContain("BEGIN:VCALENDAR");
+    expect(repo.getKv("last_good_school_ics")).toContain("Algorithms Lecture");
+    // No HTTP feed server involved at all for this mode.
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("fails cleanly (and keeps serving the last known-good output) when sourceFeed.file points at a missing file", async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), "pipeline-test-file-missing-"));
+    const schedulePath = path.join(dir, "schedule.js");
+    writeFileSync(
+      schedulePath,
+      `module.exports = { EXAM_SCHEDULE: [], SEMESTER_START: "2026-09-01" };`
+    );
+    const db = openDatabase(":memory:");
+    const repo = new Repository(db);
+    const config = baseConfig((c) => {
+      c.sourceFeed.url = undefined;
+      c.sourceFeed.file = path.join(dir, "does-not-exist.ics");
+      c.assessments.file = schedulePath;
+    });
+    const configHolder = new ConfigHolder(config, repo);
+
+    const run = await regenerate({ repo, configHolder, domain: "test.local", logger }, "startup");
+    expect(run.status).toBe("FAILED");
+    expect(run.error).toContain("does-not-exist.ics");
     rmSync(dir, { recursive: true, force: true });
   });
 

@@ -108,7 +108,16 @@ export interface ReviewSpec {
 export interface Config {
   timezone: string;
   sourceFeed: {
-    url: string;
+    /** Fetch the university timetable over HTTP(S). Mutually exclusive with `file`. */
+    url?: string;
+    /**
+     * Read the university timetable from a local .ics file on disk instead of
+     * fetching a URL. Path is resolved relative to the process cwd. Mutually
+     * exclusive with `url`. Useful when the university feed is unreliable or
+     * time-limited (e.g. only exposes a rolling window) -- export the whole
+     * semester once and point this at the exported file.
+     */
+    file?: string;
     fetchTimeoutSeconds: number;
     maxResponseBytes: number;
   };

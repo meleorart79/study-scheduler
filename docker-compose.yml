@@ -12,6 +12,11 @@ services:
       - STUDY_CONFIG_PATH=./config/default.yaml
       - STUDY_DB_PATH=/app/data/study-scheduler.db
       - STUDY_DOMAIN=${STUDY_DOMAIN:-study-scheduler.local}
+      # File-based input (default): drop your exported .ics at
+      # ./feed-data/school-schedule.ics on the host; it's bind-mounted below.
+      # Set STUDY_FEED_URL instead (and leave STUDY_FEED_FILE unset/empty in
+      # your .env) to fetch a live feed over HTTP on every regeneration.
+      - STUDY_FEED_FILE=${STUDY_FEED_FILE:-/app/feed/school-schedule.ics}
       - STUDY_FEED_URL=${STUDY_FEED_URL}
       - STUDY_FEED_TOKEN=${STUDY_FEED_TOKEN}
       - STUDY_ADMIN_TOKEN=${STUDY_ADMIN_TOKEN}
@@ -22,6 +27,9 @@ services:
       # regeneration (cron, or POST /admin/regenerate) without a rebuild.
       - ./schedule.js:/app/schedule.js:ro
       - ./config/default.yaml:/app/config/default.yaml:ro
+      # Drop/replace your exported university .ics here; read fresh on every
+      # regeneration (no rebuild needed, just POST /admin/regenerate).
+      - ./feed-data:/app/feed:ro
 
 volumes:
   study-data:
