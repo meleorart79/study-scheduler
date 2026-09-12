@@ -102,14 +102,10 @@ async function runOnce(deps: PipelineDeps, trigger: RunTrigger): Promise<Schedul
 
     // --- 3. Parse + expand recurrence ---
     const today = localDateString(new Date(), config.timezone);
-    const rangeStartUtc = localMidnightUtc(
-      addDaysToDateString(today, -config.horizon.lookbackDays),
-      config.timezone
-    );
-    const rangeEndUtc = localMidnightUtc(
-      addDaysToDateString(today, config.horizon.lookaheadDays + 1),
-      config.timezone
-    );
+    const horizonStartDate = addDaysToDateString(today, -config.horizon.lookbackDays);
+    const horizonEndDate = addDaysToDateString(today, config.horizon.lookaheadDays);
+    const rangeStartUtc = localMidnightUtc(horizonStartDate, config.timezone);
+    const rangeEndUtc = localMidnightUtc(addDaysToDateString(horizonEndDate, 1), config.timezone);
 
     const parseResult = parseIcsFeed(feed.text, {
       rangeStartUtc,
@@ -136,7 +132,9 @@ async function runOnce(deps: PipelineDeps, trigger: RunTrigger): Promise<Schedul
 
     // --- 6. Scheduling engine (pure) ---
     const prevSessions = repo.getAllStudySessions();
-    const blockedPeriods = blockedPeriodsFromConfig(config);
+    // Static blockedPeriods plus recurringBlockedPeriods (e.g. weekly sports
+    // practice) expanded across the same horizon window used for parsing.
+    const blockedPeriods = blockedPeriodsFromConfig(config, horizonStartDate, horizonEndDate);
 
     const output = runScheduling({
       sourceEvents,

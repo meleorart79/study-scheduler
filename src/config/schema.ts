@@ -4,6 +4,16 @@ const timeString = z
   .string()
   .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "expected HH:mm 24h time");
 
+const weekdayEnum = z.enum([
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+]);
+
 const timeWindowSchema = z
   .object({
     start: timeString,
@@ -52,7 +62,21 @@ export const configSchema = z.object({
       minutesReducedPerClassHour: z.number().nonnegative().default(30),
       floorMinutes: z.number().nonnegative().default(30),
     }),
+    compactionBonusDays: z.number().nonnegative().default(1),
   }),
+  classWeighting: z
+    .object({
+      defaultWeight: z.number().positive().default(1),
+      rules: z
+        .array(
+          z.object({
+            pattern: z.string().min(1),
+            weight: z.number().nonnegative(),
+          })
+        )
+        .default([]),
+    })
+    .default({ defaultWeight: 1, rules: [] }),
   assessments: z.object({
     file: z.string().min(1),
     protectedTypes: z.array(z.string()).default([]),
@@ -66,10 +90,22 @@ export const configSchema = z.object({
       })
     )
     .default([]),
+  recurringBlockedPeriods: z
+    .array(
+      z.object({
+        weekday: weekdayEnum,
+        start: timeString,
+        end: timeString,
+        reason: z.string().min(1),
+      })
+    )
+    .default([]),
   examProtection: z.object({
     scope: z.literal("all-subjects").default("all-subjects"),
     blackoutDays: z.number().int().nonnegative().default(7),
     pullForwardMaxDays: z.number().int().nonnegative().default(6),
+    approachPenaltyDays: z.number().int().nonnegative().default(5),
+    approachPenaltyWeight: z.number().nonnegative().default(2),
   }),
   horizon: z.object({
     lookaheadDays: z.number().int().positive().default(60),

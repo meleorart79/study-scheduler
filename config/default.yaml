@@ -41,8 +41,32 @@ workload:
   maxDailyMinutes: 270
   classLoadAdjustment:
     enabled: true
-    minutesReducedPerClassHour: 30
-    floorMinutes: 30
+    # Was 30/30 -- with unweighted class hours, a normal school day could
+    # crush effective capacity to near zero, which pushed reviews out to
+    # the edges of their flexibility window (or beyond, via pull-forward).
+    # Now paired with classWeighting below (TD/TP count for less), so a
+    # smaller reduction-per-hour plus a higher floor keeps some room open
+    # on most days instead of forcing everything outward.
+    minutesReducedPerClassHour: 20
+    floorMinutes: 60
+  # A day that already has a study session on it is treated as this many
+  # days "closer" to a review's target date than an empty day, so sessions
+  # cluster together during busy school weeks instead of each one spreading
+  # out independently. Set to 0 to disable clustering preference.
+  compactionBonusDays: 1
+
+# Weights class time by type before it's fed into classLoadAdjustment above.
+# Matched case-insensitively against "{summary} {location}" from the source
+# ICS event; first matching rule wins. TD/TP sessions are typically shorter
+# and more frequent than CM lectures, so they count for less "load" here --
+# tune the weights down further (e.g. 0.25) if weeks still feel too packed.
+classWeighting:
+  defaultWeight: 1.0
+  rules:
+    - pattern: "\\bTD\\b"
+      weight: 0.5
+    - pattern: "\\bTP\\b"
+      weight: 0.5
 
 assessments:
   file: "./schedule.js"
@@ -56,10 +80,32 @@ assessments:
 #     reason: "Away for a wedding"
 blockedPeriods: []
 
+# Weekly recurring blocked windows (standing commitments like sports).
+# Expanded into concrete blocked periods across the active scheduling
+# horizon on every regeneration -- no need to add one entry per week.
+recurringBlockedPeriods:
+  - weekday: "monday"
+    start: "12:00"
+    end: "13:30"
+    reason: "Basketball"
+  - weekday: "wednesday"
+    start: "17:00"
+    end: "18:30"
+    reason: "Basketball"
+  - weekday: "friday"
+    start: "17:00"
+    end: "18:30"
+    reason: "Basketball"
+
 examProtection:
   scope: all-subjects
   blackoutDays: 7
   pullForwardMaxDays: 6
+  # Once a candidate date is within this many days of an upcoming partiel
+  # blackout, ranking starts penalizing it so sessions get placed earlier
+  # instead of piling up right at the blackout's edge as the week fills up.
+  approachPenaltyDays: 5
+  approachPenaltyWeight: 2
 
 # If you're loading a whole semester at once via sourceFeed.file, make sure
 # lookaheadDays covers the rest of the semester from "today" (e.g. a 16-week

@@ -105,6 +105,28 @@ export interface ReviewSpec {
   flexibilityDays: number;
 }
 
+export type Weekday =
+  | "monday"
+  | "tuesday"
+  | "wednesday"
+  | "thursday"
+  | "friday"
+  | "saturday"
+  | "sunday";
+
+export interface RecurringBlockedPeriod {
+  weekday: Weekday;
+  start: string; // "HH:mm" local
+  end: string; // "HH:mm" local
+  reason: string;
+}
+
+export interface ClassWeightRule {
+  /** Regex (case-insensitive) matched against "{summary} {location}". */
+  pattern: string;
+  weight: number;
+}
+
 export interface Config {
   timezone: string;
   sourceFeed: {
@@ -139,6 +161,25 @@ export interface Config {
       minutesReducedPerClassHour: number;
       floorMinutes: number;
     };
+    /**
+     * A candidate day that already has at least one study session placed on
+     * it is treated as this many days closer to the review's target date
+     * than an otherwise-empty day, encouraging sessions to cluster on
+     * already-used days instead of spreading across the whole flexibility
+     * window. 0 disables clustering preference.
+     */
+    compactionBonusDays: number;
+  };
+  /**
+   * Weights class time by type (e.g. TD/TP vs CM) before it's fed into
+   * classLoadAdjustment, so lighter/more-numerous class types don't crush a
+   * day's study capacity the way a full lecture would. Rules are tried in
+   * order; the first matching pattern wins. Unmatched events use
+   * `defaultWeight`.
+   */
+  classWeighting: {
+    defaultWeight: number;
+    rules: ClassWeightRule[];
   };
   assessments: {
     file: string;
@@ -151,10 +192,25 @@ export interface Config {
    * given, so they live here. See README's "unspecified assumptions".
    */
   blockedPeriods: { startUtc: ISODateTime; endUtc: ISODateTime; reason: string }[];
+  /**
+   * Weekly recurring blocked windows (e.g. sports practice, standing
+   * commitments). Expanded into concrete blockedPeriods for the active
+   * horizon before each scheduling run.
+   */
+  recurringBlockedPeriods: RecurringBlockedPeriod[];
   examProtection: {
     scope: "all-subjects";
     blackoutDays: number;
     pullForwardMaxDays: number;
+    /**
+     * Once a candidate date is within this many days of an upcoming exam
+     * blackout, a ranking penalty is applied (see approachPenaltyWeight) so
+     * sessions are pushed earlier instead of piling up right at the edge
+     * of the blackout. 0 disables the penalty.
+     */
+    approachPenaltyDays: number;
+    /** "Effective distance days" added per day of closeness once inside approachPenaltyDays. */
+    approachPenaltyWeight: number;
   };
   horizon: {
     lookaheadDays: number;

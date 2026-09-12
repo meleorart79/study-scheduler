@@ -18,6 +18,11 @@ interface OccupiedEntry {
   kind: "class" | "study" | "blocked" | "blackout";
 }
 
+interface Blackout {
+  startUtc: string;
+  endUtc: string;
+}
+
 interface EffectiveOverride {
   action: OverrideAction | null; // null = no active override (never set, or last action was UNLOCK)
   newStartUtc: string | null;
@@ -67,7 +72,7 @@ export function runScheduling(input: SchedulingInput): SchedulingOutput {
   const currentCanonicalIds = new Set(sourceEvents.map((e) => e.canonicalId));
   const sourceEventById = new Map(sourceEvents.map((e) => [e.canonicalId, e]));
 
-  const classMinutesByDate = computeClassMinutesByDate(sourceEvents, config.timezone);
+  const classMinutesByDate = computeClassMinutesByDate(sourceEvents, config.timezone, config);
 
   const results: StudySession[] = [];
   const occupied: OccupiedEntry[] = [];
@@ -228,15 +233,27 @@ export function runScheduling(input: SchedulingInput): SchedulingOutput {
       continue;
     }
 
-    let best = pickBestCandidate(normalDates, p.ev, config, occupied, classMinutesByDate, studyMinutesByDate, targetDate);
+    let best = pickBestCandidate(
+      normalDates, p.ev, config, occupied, classMinutesByDate, studyMinutesByDate, targetDate, blackouts
+    );
 
     let usedPullForward = false;
     if (!best && reviewSpec.name === "far" && config.examProtection.pullForwardMaxDays > 0) {
-      const pullEarliest = addDaysToDateString(earliestDate, -config.examProtection.pullForwardMaxDays);
-      const pullDates = enumerateDates(pullEarliest, addDaysToDateString(earliestDate, -1)).filter(
-        (d) => d !== ownClassDate
+      // Never pull a review earlier than the day right after its own class
+      // (the "near" review owns that immediate window) -- previously this
+      // floor wasn't applied and a "far" review could in theory land before
+      // the class it's reviewing even happened.
+      const minPullDate = addDaysToDateString(ownClassDate, 1);
+      let pullEarliest = addDaysToDateString(earliestDate, -config.examProtection.pullForwardMaxDays);
+      if (pullEarliest < minPullDate) pullEarliest = minPullDate;
+      const pullLatest = addDaysToDateString(earliestDate, -1);
+      const pullDates =
+        pullEarliest <= pullLatest
+          ? enumerateDates(pullEarliest, pullLatest).filter((d) => d !== ownClassDate)
+          : [];
+      best = pickBestCandidate(
+        pullDates, p.ev, config, occupied, classMinutesByDate, studyMinutesByDate, targetDate, blackouts
       );
-      best = pickBestCandidate(pullDates, p.ev, config, occupied, classMinutesByDate, studyMinutesByDate, targetDate);
       usedPullForward = Boolean(best);
     }
 
@@ -354,11 +371,32 @@ function commitPlacement(
   studyMinutesByDate.set(date, (studyMinutesByDate.get(date) ?? 0) + minutes);
 }
 
+/**
+ * Extra "effective distance" penalty for a candidate date that's close to
+ * (or after) the start of an upcoming exam blackout. This pushes sessions to
+ * be placed earlier, proactively, instead of only being forced there once
+ * everything closer to the target is already full.
+ */
+function blackoutApproachPenalty(date: string, blackouts: Blackout[], config: Config): number {
+  const { approachPenaltyDays, approachPenaltyWeight } = config.examProtection;
+  if (approachPenaltyDays <= 0 || approachPenaltyWeight <= 0) return 0;
+  let penalty = 0;
+  for (const b of blackouts) {
+    const blackoutStartDate = b.startUtc.slice(0, 10); // "YYYY-MM-DD" prefix of an ISO instant
+    const daysUntil = dayDiff(date, blackoutStartDate);
+    if (daysUntil >= 0 && daysUntil <= approachPenaltyDays) {
+      const thisPenalty = (approachPenaltyDays - daysUntil) * approachPenaltyWeight;
+      penalty = Math.max(penalty, thisPenalty);
+    }
+  }
+  return penalty;
+}
+
 interface RankedCandidate {
   startUtc: Date;
   endUtc: Date;
   date: string;
-  distance: number;
+  effectiveDistance: number;
   workloadOverage: number;
   minutesOfDayStart: number;
 }
@@ -370,7 +408,8 @@ function pickBestCandidate(
   occupied: OccupiedEntry[],
   classMinutesByDate: Map<string, number>,
   studyMinutesByDate: Map<string, number>,
-  targetDate: string
+  targetDate: string,
+  blackouts: Blackout[]
 ): { startUtc: Date; endUtc: Date } | null {
   const ranked: RankedCandidate[] = [];
 
@@ -401,11 +440,20 @@ function pickBestCandidate(
       }
       if (!ok) continue;
 
+      const rawDistance = Math.abs(dayDiff(targetDate, date));
+      // Reward days that already have a study session on them (up to the
+      // day's cap) so sessions cluster together during busy weeks instead
+      // of each independently minimizing its own distance-to-target and
+      // spreading across the whole flexibility window.
+      const compactionDiscount = existingStudy > 0 ? config.workload.compactionBonusDays : 0;
+      const approachPenalty = blackoutApproachPenalty(date, blackouts, config);
+      const effectiveDistance = Math.max(0, rawDistance - compactionDiscount) + approachPenalty;
+
       ranked.push({
         startUtc: c.startUtc,
         endUtc: c.endUtc,
         date,
-        distance: Math.abs(dayDiff(targetDate, date)),
+        effectiveDistance,
         workloadOverage: Math.max(0, resultingMinutes - preferred),
         minutesOfDayStart: minutesOfDay(c.startUtc, config.timezone),
       });
@@ -415,7 +463,7 @@ function pickBestCandidate(
   if (ranked.length === 0) return null;
 
   ranked.sort((a, b) => {
-    if (a.distance !== b.distance) return a.distance - b.distance;
+    if (a.effectiveDistance !== b.effectiveDistance) return a.effectiveDistance - b.effectiveDistance;
     if (a.workloadOverage !== b.workloadOverage) return a.workloadOverage - b.workloadOverage;
     if (a.minutesOfDayStart !== b.minutesOfDayStart) return a.minutesOfDayStart - b.minutesOfDayStart;
     // final deterministic tie-break: date asc, start time asc (already asc above), canonical id asc (constant here)
