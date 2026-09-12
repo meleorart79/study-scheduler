@@ -1,0 +1,5 @@
+pm2 restart study-scheduler   # after rebuilding (npm run build)
+pm2 stop study-scheduler
+pm2 delete study-scheduler    # remove from PM2 entirely
+pm2 logs study-scheduler      # tail logs
+pm2 status                    # see all managed processes
