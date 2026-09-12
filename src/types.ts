@@ -35,15 +35,15 @@ export interface SourceEvent {
 export type AssessmentType = string;
 
 export interface Assessment {
-  id: string;
-  subject: string;
-  type: AssessmentType;
-  /** Date (Europe/Paris civil date) the assessment occurs on. */
-  date: ISODate;
-  /** Optional local start time "HH:mm"; if absent the whole day is protected. */
-  startTime: string | null;
-  endTime: string | null;
-  title: string;
+    id: string;
+    subject: string;
+    type: AssessmentType;
+    date: ISODate;
+    /** Last day of a multi-day assessment. Equals `date` for single-day exams. */
+    endDate: ISODate;
+    startTime: string | null;
+    endTime: string | null;
+    title: string;
 }
 
 export type ReviewName = string; // e.g. "near" | "far", driven by config
@@ -100,9 +100,15 @@ export interface TimeWindow {
 }
 
 export interface ReviewSpec {
-  name: ReviewName;
-  targetOffsetDays: number;
-  flexibilityDays: number;
+    name: ReviewName;
+    targetOffsetDays: number;
+    flexibilityDays: number;
+    /**
+     * If true, ignore targetOffsetDays/flexibilityDays entirely and take the
+     * first available slot anywhere from the day after class through the end
+     * of the configured horizon (chronological first-fit).
+     */
+    anySlot?: boolean;
 }
 
 export type Weekday =

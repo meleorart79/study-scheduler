@@ -35,16 +35,17 @@ export function makeSourceEvent(overrides: Partial<SourceEvent> = {}): SourceEve
 }
 
 export function makeAssessment(overrides: Partial<Assessment> = {}): Assessment {
-  return {
-    id: uniq("assessment"),
-    subject: "Algorithms",
-    type: "partiel",
-    date: "2026-10-01",
-    startTime: "09:00",
-    endTime: "11:00",
-    title: "Algorithms Partiel",
-    ...overrides,
-  };
+    return {
+        id: uniq("assessment"),
+        subject: "Algorithms",
+        type: "partiel",
+        date: "2026-10-01",
+        endDate: "2026-10-01",
+        startTime: "09:00",
+        endTime: "11:00",
+        title: "Algorithms Partiel",
+        ...overrides,
+    };
 }
 
 export function makeOverride(overrides: Partial<Override> = {}): Override {

@@ -45,15 +45,17 @@ export const configSchema = z.object({
     sessionMinutes: z.number().int().positive().default(90),
     minBufferMinutes: z.number().int().nonnegative().default(15),
   }),
-  reviews: z
-    .array(
-      z.object({
-        name: z.string().min(1),
-        targetOffsetDays: z.number().int(),
-        flexibilityDays: z.number().int().nonnegative(),
-      })
-    )
-    .min(1),
+    reviews: z
+        .array(
+            z.object({
+                name: z.string().min(1),
+                targetOffsetDays: z.number().int().default(0),
+                flexibilityDays: z.number().int().nonnegative().default(0),
+                /** First-fit mode: ignore target/flexibility, take first free slot. */
+                anySlot: z.boolean().default(false),
+            })
+        )
+        .min(1),
   workload: z.object({
     preferredDailyMinutes: z.number().int().positive().default(180),
     maxDailyMinutes: z.number().int().positive().default(270),

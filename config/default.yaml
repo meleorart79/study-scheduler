@@ -33,8 +33,9 @@ reviews:
     targetOffsetDays: 1
     flexibilityDays: 1
   - name: far
-    targetOffsetDays: 7
-    flexibilityDays: 3
+    # First-fit: take the first free slot anywhere in the horizon instead
+    # of aiming for a target offset/flexibility window.
+    anySlot: true
 
 workload:
   preferredDailyMinutes: 180

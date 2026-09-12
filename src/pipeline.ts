@@ -4,7 +4,7 @@ import { fetchIcsFeed, readIcsFeedFromFile, FeedFetchError } from "./ics-input/f
 import { parseIcsFeed } from "./ics-input/parse.js";
 import { normalizeSourceEvents } from "./normalization/normalize.js";
 import { loadScheduleFile, AssessmentLoadError } from "./assessments/loadSchedule.js";
-import { toDomainAssessments } from "./assessments/blackout.js";
+import { toDomainAssessments, computeExamBlackouts, computeHolidayPeriods } from "./assessments/blackout.js";
 import { blockedPeriodsFromConfig } from "./scheduling/blockedPeriods.js";
 import { runScheduling } from "./scheduling/engine.js";
 import { generateStudyIcs, generateSchoolIcs } from "./ics-output/generate.js";
@@ -129,12 +129,21 @@ async function runOnce(deps: PipelineDeps, trigger: RunTrigger): Promise<Schedul
 
     // --- 5. Assessments ---
     const assessments = toDomainAssessments(schedule.examSchedule);
+    const examBlackouts = computeExamBlackouts(assessments, config);
+    const holidayPeriods = computeHolidayPeriods(schedule.holidays);
 
     // --- 6. Scheduling engine (pure) ---
     const prevSessions = repo.getAllStudySessions();
-    // Static blockedPeriods plus recurringBlockedPeriods (e.g. weekly sports
-    // practice) expanded across the same horizon window used for parsing.
-    const blockedPeriods = blockedPeriodsFromConfig(config, horizonStartDate, horizonEndDate);
+    // Static + recurringBlockedPeriods (basketball), suppressed during exam
+    // blackouts/holidays; holidayPeriods are also appended directly so they
+    // block ALL scheduling (classes/study/basketball), not just basketball.
+    const blockedPeriods = [
+        ...blockedPeriodsFromConfig(config, horizonStartDate, horizonEndDate, [
+            ...examBlackouts,
+            ...holidayPeriods,
+        ]),
+        ...holidayPeriods,
+    ];
 
     const output = runScheduling({
       sourceEvents,

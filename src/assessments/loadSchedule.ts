@@ -6,46 +6,66 @@ import { z } from "zod";
 
 export class AssessmentLoadError extends Error {}
 
-const assessmentRawSchema = z.object({
-  id: z.string().min(1),
-  subject: z.string().min(1),
-  type: z.string().min(1),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD"),
-  startTime: z
-    .string()
-    .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
-    .nullable()
-    .optional()
-    .default(null),
-  endTime: z
-    .string()
-    .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
-    .nullable()
-    .optional()
-    .default(null),
-  title: z.string().min(1),
+const assessmentRawSchema = z
+  .object({
+    id: z.string().min(1),
+    subject: z.string().min(1),
+    type: z.string().min(1),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "date must be YYYY-MM-DD"),
+    /**
+     * Optional end date for multi-day assessments (a week of partiels, not
+     * a single date). Defaults to `date` when omitted. Must be >= date.
+     */
+    endDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "endDate must be YYYY-MM-DD")
+      .nullable()
+      .optional(),
+    startTime: z
+      .string()
+      .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+      .nullable()
+      .optional()
+      .default(null),
+    endTime: z
+      .string()
+      .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
+      .nullable()
+      .optional()
+      .default(null),
+    title: z.string().min(1),
+  })
+  .refine((a) => !a.endDate || a.endDate >= a.date, {
+    message: "endDate must be on or after date",
+  });
+
+const holidayRawSchema = z.object({
+  name: z.string().min(1),
+  /** Floating local datetime "YYYY-MM-DDTHH:mm:ss", interpreted as Europe/Paris. */
+  startDate: z.string().min(1),
+  endDate: z.string().min(1),
 });
 
 const scheduleModuleSchema = z.object({
   EXAM_SCHEDULE: z.array(assessmentRawSchema),
   SEMESTER_START: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  HOLIDAYS_SCHEDULE: z.array(holidayRawSchema).default([]),
 });
 
 export type RawAssessment = z.infer<typeof assessmentRawSchema>;
+export type RawHoliday = z.infer<typeof holidayRawSchema>;
 
 export interface LoadedSchedule {
   examSchedule: RawAssessment[];
+  holidays: RawHoliday[];
   semesterStart: string;
 }
 
 /**
  * Loads schedule.js as CommonJS regardless of the surrounding project's
- * package.json "type" field. We deliberately don't go through Node's
- * normal require()/import() resolution (which would treat a plain .js
- * file as ESM under a "type": "module" package and choke on
- * `module.exports`); instead we read the source and evaluate it in a
- * CommonJS-shaped wrapper, exactly like Node's own module loader does
- * internally.
+ * package.json "type" field. See original comment: we deliberately avoid
+ * Node's normal require()/import() resolution and evaluate the source in a
+ * CommonJS-shaped wrapper instead.
  */
 export function loadScheduleFile(filePath: string): LoadedSchedule {
   const absPath = path.resolve(filePath);
@@ -94,7 +114,6 @@ export function loadScheduleFile(filePath: string): LoadedSchedule {
     );
   }
 
-  // Duplicate id detection: fail loudly rather than silently dropping one.
   const seen = new Set<string>();
   for (const a of parsed.data.EXAM_SCHEDULE) {
     if (seen.has(a.id)) {
@@ -105,6 +124,7 @@ export function loadScheduleFile(filePath: string): LoadedSchedule {
 
   return {
     examSchedule: parsed.data.EXAM_SCHEDULE,
+    holidays: parsed.data.HOLIDAYS_SCHEDULE,
     semesterStart: parsed.data.SEMESTER_START,
   };
 }

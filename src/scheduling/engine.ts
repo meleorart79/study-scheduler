@@ -198,97 +198,112 @@ export function runScheduling(input: SchedulingInput): SchedulingOutput {
 
   const studyMinutesByDate = new Map<string, number>();
 
-  for (const p of autoQueue) {
-    const reviewSpec = config.reviews[p.reviewIndex]!;
-    const prev = prevById.get(p.id);
-    const eff = effectiveOverrides.get(p.id);
-    const ownClassDate = localDateString(new Date(p.ev.startUtc), config.timezone);
+    for (const p of autoQueue) {
+        const reviewSpec = config.reviews[p.reviewIndex]!;
+        const prev = prevById.get(p.id);
+        const eff = effectiveOverrides.get(p.id);
+        const ownClassDate = localDateString(new Date(p.ev.startUtc), config.timezone);
 
-    const targetDate = addDaysToDateString(ownClassDate, reviewSpec.targetOffsetDays);
-    const earliestDate = addDaysToDateString(targetDate, -reviewSpec.flexibilityDays);
-    const latestDate = addDaysToDateString(targetDate, reviewSpec.flexibilityDays);
+        let searchDates: string[];
+        let targetDateForRanking: string | null = null;
+        let earliestDateForPullForward: string | null = null;
 
-    const normalDates = enumerateDates(earliestDate, latestDate).filter((d) => d !== ownClassDate);
+        if (reviewSpec.anySlot) {
+            // First-fit mode: ignore targetOffsetDays/flexibilityDays entirely
+            // and take the first available slot anywhere from the day after
+            // class through the end of the configured horizon.
+            const today = localDateString(new Date(nowUtc), config.timezone);
+            const horizonEndDate = addDaysToDateString(today, config.horizon.lookaheadDays);
+            const searchStart = addDaysToDateString(ownClassDate, 1);
+            const searchEnd = horizonEndDate > searchStart ? horizonEndDate : searchStart;
+            searchDates = enumerateDates(searchStart, searchEnd).filter((d) => d !== ownClassDate);
+        } else {
+            const targetDate = addDaysToDateString(ownClassDate, reviewSpec.targetOffsetDays);
+            const earliestDate = addDaysToDateString(targetDate, -reviewSpec.flexibilityDays);
+            const latestDate = addDaysToDateString(targetDate, reviewSpec.flexibilityDays);
+            searchDates = enumerateDates(earliestDate, latestDate).filter((d) => d !== ownClassDate);
+            targetDateForRanking = targetDate;
+            earliestDateForPullForward = earliestDate;
+        }
 
-    // Stability preference: keep the previous auto-placement if it's still valid.
-    if (
-      !eff &&
-      prev &&
-      prev.status === "SCHEDULED" &&
-      prev.startUtc &&
-      prev.endUtc &&
-      normalDates.includes(localDateString(new Date(prev.startUtc), config.timezone)) &&
-      isValidPlacement(prev.startUtc, prev.endUtc, occupied, config, classMinutesByDate, studyMinutesByDate, config.grid.sessionMinutes, config.timezone)
-    ) {
-      const session = makeSession(p, reviewSpec, prev, nowUtc, {
-        status: "SCHEDULED",
-        startUtc: prev.startUtc,
-        endUtc: prev.endUtc,
-        orphaned: false,
-        hasManualOverride: false,
-        needsAttentionReason: null,
-      });
-      results.push(session);
-      commitPlacement(prev.startUtc, prev.endUtc, occupied, studyMinutesByDate, config.timezone);
-      continue;
+        // Stability preference: keep the previous auto-placement if it's still valid.
+        if (
+            !eff &&
+            prev &&
+            prev.status === "SCHEDULED" &&
+            prev.startUtc &&
+            prev.endUtc &&
+            searchDates.includes(localDateString(new Date(prev.startUtc), config.timezone)) &&
+            isValidPlacement(prev.startUtc, prev.endUtc, occupied, config, classMinutesByDate, studyMinutesByDate, config.grid.sessionMinutes, config.timezone)
+        ) {
+            const session = makeSession(p, reviewSpec, prev, nowUtc, {
+                status: "SCHEDULED",
+                startUtc: prev.startUtc,
+                endUtc: prev.endUtc,
+                orphaned: false,
+                hasManualOverride: false,
+                needsAttentionReason: null,
+            });
+            results.push(session);
+            commitPlacement(prev.startUtc, prev.endUtc, occupied, studyMinutesByDate, config.timezone);
+            continue;
+        }
+
+        let best: { startUtc: Date; endUtc: Date } | null;
+        if (reviewSpec.anySlot) {
+            best = pickFirstFitCandidate(searchDates, config, occupied, classMinutesByDate, studyMinutesByDate);
+        } else {
+            best = pickBestCandidate(
+                searchDates, p.ev, config, occupied, classMinutesByDate, studyMinutesByDate, targetDateForRanking!, blackouts
+            );
+        }
+
+        let usedPullForward = false;
+        if (!best && !reviewSpec.anySlot && reviewSpec.name === "far" && config.examProtection.pullForwardMaxDays > 0 && earliestDateForPullForward) {
+            const minPullDate = addDaysToDateString(ownClassDate, 1);
+            let pullEarliest = addDaysToDateString(earliestDateForPullForward, -config.examProtection.pullForwardMaxDays);
+            if (pullEarliest < minPullDate) pullEarliest = minPullDate;
+            const pullLatest = addDaysToDateString(earliestDateForPullForward, -1);
+            const pullDates =
+                pullEarliest <= pullLatest
+                    ? enumerateDates(pullEarliest, pullLatest).filter((d) => d !== ownClassDate)
+                    : [];
+            best = pickBestCandidate(
+                pullDates, p.ev, config, occupied, classMinutesByDate, studyMinutesByDate, targetDateForRanking!, blackouts
+            );
+            usedPullForward = Boolean(best);
+        }
+
+        if (!best) {
+            results.push(makeSession(p, reviewSpec, prev, nowUtc, {
+                status: "NEEDS_ATTENTION",
+                startUtc: null,
+                endUtc: null,
+                orphaned: false,
+                hasManualOverride: false,
+                needsAttentionReason: reviewSpec.anySlot
+                    ? "No free slot found anywhere in the remaining horizon"
+                    : `No valid ${config.grid.sessionMinutes}-minute slot found within the allowed window` +
+                    (reviewSpec.name === "far" ? " (pull-forward exhausted)" : ""),
+            }));
+            continue;
+        }
+
+        const startIso = best.startUtc.toISOString();
+        const endIso = best.endUtc.toISOString();
+        const finalStatus = eff?.action === "LOCK" ? "LOCKED" : "SCHEDULED";
+
+        results.push(makeSession(p, reviewSpec, prev, nowUtc, {
+            status: finalStatus,
+            startUtc: startIso,
+            endUtc: endIso,
+            orphaned: false,
+            hasManualOverride: finalStatus === "LOCKED",
+            needsAttentionReason: null,
+        }));
+        commitPlacement(startIso, endIso, occupied, studyMinutesByDate, config.timezone);
+        void usedPullForward;
     }
-
-    let best = pickBestCandidate(
-      normalDates, p.ev, config, occupied, classMinutesByDate, studyMinutesByDate, targetDate, blackouts
-    );
-
-    let usedPullForward = false;
-    if (!best && reviewSpec.name === "far" && config.examProtection.pullForwardMaxDays > 0) {
-      // Never pull a review earlier than the day right after its own class
-      // (the "near" review owns that immediate window) -- previously this
-      // floor wasn't applied and a "far" review could in theory land before
-      // the class it's reviewing even happened.
-      const minPullDate = addDaysToDateString(ownClassDate, 1);
-      let pullEarliest = addDaysToDateString(earliestDate, -config.examProtection.pullForwardMaxDays);
-      if (pullEarliest < minPullDate) pullEarliest = minPullDate;
-      const pullLatest = addDaysToDateString(earliestDate, -1);
-      const pullDates =
-        pullEarliest <= pullLatest
-          ? enumerateDates(pullEarliest, pullLatest).filter((d) => d !== ownClassDate)
-          : [];
-      best = pickBestCandidate(
-        pullDates, p.ev, config, occupied, classMinutesByDate, studyMinutesByDate, targetDate, blackouts
-      );
-      usedPullForward = Boolean(best);
-    }
-
-    if (!best) {
-      results.push(makeSession(p, reviewSpec, prev, nowUtc, {
-        status: "NEEDS_ATTENTION",
-        startUtc: null,
-        endUtc: null,
-        orphaned: false,
-        hasManualOverride: false,
-        needsAttentionReason: `No valid ${config.grid.sessionMinutes}-minute slot found within the allowed window` +
-          (reviewSpec.name === "far" ? " (pull-forward exhausted)" : ""),
-      }));
-      continue;
-    }
-
-    const startIso = best.startUtc.toISOString();
-    const endIso = best.endUtc.toISOString();
-
-    // A LOCK override placed on a session with no prior placement: place it
-    // via the normal algorithm, then immediately pin it as LOCKED so the
-    // next run leaves it exactly here.
-    const finalStatus = eff?.action === "LOCK" ? "LOCKED" : "SCHEDULED";
-
-    results.push(makeSession(p, reviewSpec, prev, nowUtc, {
-      status: finalStatus,
-      startUtc: startIso,
-      endUtc: endIso,
-      orphaned: false,
-      hasManualOverride: finalStatus === "LOCKED",
-      needsAttentionReason: null,
-    }));
-    commitPlacement(startIso, endIso, occupied, studyMinutesByDate, config.timezone);
-    void usedPullForward;
-  }
 
   const stats = {
     scheduled: results.filter((r) => r.status === "SCHEDULED").length,
@@ -399,6 +414,42 @@ interface RankedCandidate {
   effectiveDistance: number;
   workloadOverage: number;
   minutesOfDayStart: number;
+}
+
+/**
+ * Strict chronological first-fit: earliest date, then earliest start time,
+ * with no distance/compaction/workload-preferred ranking at all -- only
+ * hard constraints (buffer/overlap against classes/study/blocked/blackout,
+ * and the day's hard maxDailyMinutes cap).
+ */
+function pickFirstFitCandidate(
+    dates: string[],
+    config: Config,
+    occupied: OccupiedEntry[],
+    classMinutesByDate: Map<string, number>,
+    studyMinutesByDate: Map<string, number>
+): { startUtc: Date; endUtc: Date } | null {
+    for (const date of dates) {
+        const classMinutes = classMinutesByDate.get(date) ?? 0;
+        const max = effectiveMaxMinutes(classMinutes, config);
+        const existingStudy = studyMinutesByDate.get(date) ?? 0;
+        if (existingStudy + config.grid.sessionMinutes > max) continue;
+
+        const candidates = generateCandidatesForDate(date, config);
+        for (const c of candidates) {
+            const interval = toInterval(c.startUtc, c.endUtc);
+            let ok = true;
+            for (const entry of occupied) {
+                if (entry.kind === "class" || entry.kind === "study") {
+                    if (tooClose(interval, entry.interval, config.grid.minBufferMinutes)) { ok = false; break; }
+                } else {
+                    if (overlaps(interval, entry.interval)) { ok = false; break; }
+                }
+            }
+            if (ok) return { startUtc: c.startUtc, endUtc: c.endUtc };
+        }
+    }
+    return null;
 }
 
 function pickBestCandidate(
