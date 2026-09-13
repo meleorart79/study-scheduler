@@ -60,9 +60,16 @@ export function effectivePreferredMinutes(
   return Math.max(classLoadAdjustment.floorMinutes, preferredDailyMinutes - reduction);
 }
 
+/**
+ * Returns Infinity (no cap) when maxDailyMinutes is null. Otherwise the
+ * usual classLoadAdjustment-reduced cap. classLoadAdjustment still shrinks
+ * effectivePreferredMinutes (the soft ranking preference) regardless — it
+ * only stops acting as a hard wall once maxDailyMinutes is null.
+ */
 export function effectiveMaxMinutes(classMinutesOnDay: number, config: Config): number {
-  const { maxDailyMinutes, classLoadAdjustment } = config.workload;
-  if (!classLoadAdjustment.enabled) return maxDailyMinutes;
-  const reduction = classMinutesOnDay * (classLoadAdjustment.minutesReducedPerClassHour / 60);
-  return Math.max(classLoadAdjustment.floorMinutes, maxDailyMinutes - reduction);
+    const { maxDailyMinutes, classLoadAdjustment } = config.workload;
+    if (maxDailyMinutes === null) return Infinity;
+    if (!classLoadAdjustment.enabled) return maxDailyMinutes;
+    const reduction = classMinutesOnDay * (classLoadAdjustment.minutesReducedPerClassHour / 60);
+    return Math.max(classLoadAdjustment.floorMinutes, maxDailyMinutes - reduction);
 }

@@ -58,7 +58,7 @@ export const configSchema = z.object({
         .min(1),
   workload: z.object({
     preferredDailyMinutes: z.number().int().positive().default(180),
-    maxDailyMinutes: z.number().int().positive().default(270),
+    maxDailyMinutes: z.number().int().positive().default(null),
     classLoadAdjustment: z.object({
       enabled: z.boolean().default(true),
       minutesReducedPerClassHour: z.number().nonnegative().default(30),
@@ -88,6 +88,7 @@ export const configSchema = z.object({
       z.object({
         startUtc: z.string().min(1),
         endUtc: z.string().min(1),
+        visible: z.boolean().default(true),
         reason: z.string().min(1),
       })
     )
@@ -99,6 +100,7 @@ export const configSchema = z.object({
         start: timeString,
         end: timeString,
         reason: z.string().min(1),
+        visible: z.boolean().default(true),
       })
     )
     .default([]),

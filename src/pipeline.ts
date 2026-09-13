@@ -5,7 +5,7 @@ import { parseIcsFeed } from "./ics-input/parse.js";
 import { normalizeSourceEvents } from "./normalization/normalize.js";
 import { loadScheduleFile, AssessmentLoadError } from "./assessments/loadSchedule.js";
 import { toDomainAssessments, computeExamBlackouts, computeHolidayPeriods } from "./assessments/blackout.js";
-import { blockedPeriodsFromConfig } from "./scheduling/blockedPeriods.js";
+import { blockedPeriodsFromConfig, visibleCommitmentPeriods } from "./scheduling/blockedPeriods.js";
 import { runScheduling } from "./scheduling/engine.js";
 import { generateStudyIcs, generateSchoolIcs } from "./ics-output/generate.js";
 import { localMidnightUtc, addDaysToDateString, localDateString } from "./util/timezone.js";
@@ -137,13 +137,15 @@ async function runOnce(deps: PipelineDeps, trigger: RunTrigger): Promise<Schedul
     // Static + recurringBlockedPeriods (basketball), suppressed during exam
     // blackouts/holidays; holidayPeriods are also appended directly so they
     // block ALL scheduling (classes/study/basketball), not just basketball.
-    const blockedPeriods = [
-        ...blockedPeriodsFromConfig(config, horizonStartDate, horizonEndDate, [
-            ...examBlackouts,
-            ...holidayPeriods,
-        ]),
+    const blockedPeriods = blockedPeriodsFromConfig(config, horizonStartDate, horizonEndDate, [
+        ...examBlackouts,
         ...holidayPeriods,
-    ];
+    ]);
+
+    const visibleCommitments = visibleCommitmentPeriods(config, horizonStartDate, horizonEndDate, [
+        ...examBlackouts,
+        ...holidayPeriods,
+    ]);
 
     const output = runScheduling({
       sourceEvents,
@@ -167,7 +169,7 @@ async function runOnce(deps: PipelineDeps, trigger: RunTrigger): Promise<Schedul
     // generated study sessions. Kept as separate cached values (and thus
     // separate subscription URLs) so a failure/rebuild of one never
     // affects what's being served for the other.
-    const studyIcs = generateStudyIcs(output.sessions, config, { domain });
+    const studyIcs = generateStudyIcs(output.sessions, config, { domain }, visibleCommitments);
     repo.setKv("last_good_ics", studyIcs);
     repo.setKv("last_good_ics_generated_at", nowIso);
 

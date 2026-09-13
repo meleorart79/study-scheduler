@@ -14,13 +14,13 @@ sourceFeed:
 
 studyWindows:
   weekdays:
-    - start: "11:30"
-      end: "21:00"
+    - start: "8:30"
+      end: "22:00"
 
   weekends:
-    - start: "10:00"
-      end: "14:00"
-    - start: "20:00"
+    - start: "8:00"
+      end: "12:00"
+    - start: "16:00"
       end: "22:00"
 
 grid:
@@ -39,7 +39,7 @@ reviews:
 
 workload:
   preferredDailyMinutes: 180
-  maxDailyMinutes: 270
+  maxDailyMinutes: null
   classLoadAdjustment:
     enabled: true
     # Was 30/30 -- with unweighted class hours, a normal school day could

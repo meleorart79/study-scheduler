@@ -124,7 +124,8 @@ export interface RecurringBlockedPeriod {
   weekday: Weekday;
   start: string; // "HH:mm" local
   end: string; // "HH:mm" local
-  reason: string;
+    reason: string;
+    visible?: boolean;
 }
 
 export interface ClassWeightRule {
@@ -161,7 +162,7 @@ export interface Config {
   reviews: ReviewSpec[];
   workload: {
     preferredDailyMinutes: number;
-    maxDailyMinutes: number;
+    maxDailyMinutes: number | null;
     classLoadAdjustment: {
       enabled: boolean;
       minutesReducedPerClassHour: number;
