@@ -198,7 +198,7 @@ export interface Config {
    * blocked periods" is a required rule with no other configuration surface
    * given, so they live here. See README's "unspecified assumptions".
    */
-  blockedPeriods: { startUtc: ISODateTime; endUtc: ISODateTime; reason: string }[];
+  blockedPeriods: { startUtc: ISODateTime; endUtc: ISODateTime; reason: string; visible?: boolean }[];
   /**
    * Weekly recurring blocked windows (e.g. sports practice, standing
    * commitments). Expanded into concrete blockedPeriods for the active

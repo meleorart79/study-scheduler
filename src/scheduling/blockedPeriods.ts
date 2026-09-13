@@ -89,21 +89,6 @@ export function blockedPeriodsFromConfig(
     return [...staticPeriods, ...recurring.map(({ visible, ...bp }) => bp)];
 }
 
-export function blockedPeriodsFromConfig(
-    config: Config,
-    rangeStartDate: string,
-    rangeEndDate: string,
-    suppressionWindows: SuppressionWindow[] = []
-): BlockedPeriod[] {
-    const staticPeriods = config.blockedPeriods.map((bp) => ({
-        id: makeId(bp.startUtc, bp.endUtc, bp.reason),
-        startUtc: bp.startUtc,
-        endUtc: bp.endUtc,
-        reason: bp.reason,
-    }));
-    const recurring = expandRecurringBlockedPeriods(config, rangeStartDate, rangeEndDate, suppressionWindows);
-    return [...staticPeriods, ...recurring.map(({ visible, ...bp }) => bp)];
-}
 
 /**
  * Everything that should render as a real event in study.ics: static

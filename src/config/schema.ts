@@ -58,7 +58,7 @@ export const configSchema = z.object({
         .min(1),
   workload: z.object({
     preferredDailyMinutes: z.number().int().positive().default(180),
-    maxDailyMinutes: z.number().int().positive().default(null),
+    maxDailyMinutes: z.number().int().positive().nullable().default(null),
     classLoadAdjustment: z.object({
       enabled: z.boolean().default(true),
       minutesReducedPerClassHour: z.number().nonnegative().default(30),
