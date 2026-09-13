@@ -14,11 +14,11 @@ sourceFeed:
 
 studyWindows:
   weekdays:
-    - start: "8:30"
+    - start: "08:30"
       end: "22:00"
 
   weekends:
-    - start: "8:00"
+    - start: "08:00"
       end: "12:00"
     - start: "16:00"
       end: "22:00"
