@@ -126,6 +126,14 @@ export interface RecurringBlockedPeriod {
   end: string; // "HH:mm" local
     reason: string;
     visible?: boolean;
+    /**
+     * Extra minutes of margin padded onto each side of this block purely
+     * for scheduling purposes -- e.g. so a study session can't be placed
+     * immediately before/after basketball with zero gap. Never affects the
+     * visible calendar event itself, which always shows the real,
+     * un-padded start/end time. 0/omitted = no padding (previous behavior).
+     */
+    bufferMinutes?: number;
 }
 
 export interface ClassWeightRule {

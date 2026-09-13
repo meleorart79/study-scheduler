@@ -101,6 +101,9 @@ export const configSchema = z.object({
         end: timeString,
         reason: z.string().min(1),
         visible: z.boolean().default(true),
+        // Scheduling-only margin padded onto each side of this block (see
+        // RecurringBlockedPeriod in types.ts). Never shown on the calendar.
+        bufferMinutes: z.number().int().nonnegative().default(0),
       })
     )
     .default([]),

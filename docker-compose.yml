@@ -4,10 +4,10 @@ services:
     container_name: study-scheduler
     restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "${PORT:-3000}:${PORT:-3000}"
     environment:
       - NODE_ENV=production
-      - PORT=3000
+      - PORT=${PORT:-3000}
       - HOST=0.0.0.0
       - STUDY_CONFIG_PATH=./config/default.yaml
       - STUDY_DB_PATH=/app/data/study-scheduler.db

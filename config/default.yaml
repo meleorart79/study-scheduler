@@ -15,6 +15,8 @@ sourceFeed:
 studyWindows:
   weekdays:
     - start: "08:30"
+      end: "11:45"
+    - start: "12:30"
       end: "22:00"
 
   weekends:
@@ -85,18 +87,25 @@ blockedPeriods: []
 # Expanded into concrete blocked periods across the active scheduling
 # horizon on every regeneration -- no need to add one entry per week.
 recurringBlockedPeriods:
+  # bufferMinutes keeps study sessions from being placed immediately
+  # before/after basketball with zero gap. It only affects scheduling --
+  # the calendar event itself still shows the real 12:00-13:30 / 17:00-18:30
+  # time, not the padded window.
   - weekday: "monday"
     start: "12:00"
     end: "13:30"
     reason: "Basketball"
+    bufferMinutes: 30
   - weekday: "wednesday"
     start: "17:00"
     end: "18:30"
     reason: "Basketball"
+    bufferMinutes: 30
   - weekday: "friday"
     start: "17:00"
     end: "18:30"
     reason: "Basketball"
+    bufferMinutes: 30
 
 examProtection:
   scope: all-subjects

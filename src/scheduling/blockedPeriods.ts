@@ -29,6 +29,22 @@ function overlapsAnyWindow(startUtc: string, endUtc: string, windows: Suppressio
 
 interface ExpandedRecurringPeriod extends BlockedPeriod {
     visible: boolean;
+    bufferMinutes: number;
+}
+
+/**
+ * Pads a period's start/end by `bufferMinutes` on each side. Used only when
+ * building the *hard* scheduling block for a recurring period -- the
+ * visible calendar event (visibleCommitmentPeriods, below) always keeps the
+ * exact, un-padded times.
+ */
+function padPeriod<T extends BlockedPeriod>(p: T, bufferMinutes: number): T {
+    if (!bufferMinutes) return p;
+    return {
+        ...p,
+        startUtc: new Date(new Date(p.startUtc).getTime() - bufferMinutes * 60_000).toISOString(),
+        endUtc: new Date(new Date(p.endUtc).getTime() + bufferMinutes * 60_000).toISOString(),
+    };
 }
 
 /**
@@ -65,6 +81,7 @@ function expandRecurringBlockedPeriods(
                 endUtc,
                 reason: rule.reason,
                 visible: rule.visible ?? true,
+                bufferMinutes: rule.bufferMinutes ?? 0,
             });
         }
         cur = addDaysToDateString(cur, 1);
@@ -86,7 +103,8 @@ export function blockedPeriodsFromConfig(
         reason: bp.reason,
     }));
     const recurring = expandRecurringBlockedPeriods(config, rangeStartDate, rangeEndDate, suppressionWindows);
-    return [...staticPeriods, ...recurring.map(({ visible, ...bp }) => bp)];
+    const paddedRecurring = recurring.map((p) => padPeriod(p, p.bufferMinutes));
+    return [...staticPeriods, ...paddedRecurring.map(({ visible, bufferMinutes, ...bp }) => bp)];
 }
 
 
@@ -114,7 +132,7 @@ export function visibleCommitmentPeriods(
 
     const visibleRecurring = expandRecurringBlockedPeriods(config, rangeStartDate, rangeEndDate, suppressionWindows)
         .filter((p) => p.visible)
-        .map(({ visible, ...bp }) => bp);
+        .map(({ visible, bufferMinutes,...bp }) => bp);
 
     return [...visibleStatic, ...visibleRecurring];
 }
