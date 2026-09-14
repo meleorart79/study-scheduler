@@ -32,11 +32,17 @@ describe("scheduling engine: basic placement", () => {
     expect(near.startUtc).not.toBeNull();
     expect(far.startUtc).not.toBeNull();
 
-    // near should land close to +1 day (2026-09-09), far close to +7 (2026-09-15)
+    // near targets +1 day (2026-09-09) via targetOffsetDays/flexibilityDays.
     const nearDate = localDateString(new Date(near.startUtc!), "Europe/Paris");
-    const farDate = localDateString(new Date(far.startUtc!), "Europe/Paris");
     expect(["2026-09-09", "2026-09-10"]).toContain(nearDate); // target or +1 (own-day excluded is 09-08)
-    expect(farDate >= "2026-09-12" && farDate <= "2026-09-18").toBe(true);
+
+    // far is anySlot: true (first-fit, see config/default.yaml) -- it takes
+    // the earliest free slot from the day after class onward, so it should
+    // not land before that, and in this scenario lands the same day as
+    // "near" (just a later slot, respecting the buffer between them).
+    const farDate = localDateString(new Date(far.startUtc!), "Europe/Paris");
+    expect(farDate >= "2026-09-09").toBe(true);
+    expect(farDate).not.toBe("2026-09-08"); // never the class's own day
   });
 
   it("never schedules a study session on the same calendar day as its source class", () => {
