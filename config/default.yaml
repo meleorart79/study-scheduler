@@ -136,8 +136,8 @@ examProtection:
 # semester starting now needs ~112+ days) so nothing near the end gets
 # filtered out of the parse window.
 horizon:
-  lookaheadDays: 60
-  lookbackDays: 14
+  lookaheadDays: 120
+  lookbackDays: 21
 
 regeneration:
   cronTime: "05:00"
