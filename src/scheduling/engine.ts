@@ -12,6 +12,7 @@ import { computeClassMinutesByDate, effectiveMaxMinutes, effectivePreferredMinut
 import { generateCandidatesForDate, toInterval, tooClose, overlaps, type Interval } from "./candidates.js";
 import { addDaysToDateString, localDateString, minutesOfDay } from "../util/timezone.js";
 import { dayDiff } from "./dateMath.js";
+import { buildPendingReviews, sessionId } from "./classType.js";
 
 interface OccupiedEntry {
   interval: Interval;
@@ -52,10 +53,6 @@ function resolveEffectiveOverrides(overrides: Override[]): Map<string, Effective
   return out;
 }
 
-function sessionId(canonicalId: string, reviewName: string): string {
-  return `study-${canonicalId}-${reviewName}`;
-}
-
 /**
  * The pure scheduling boundary described in the design doc:
  *   (SourceEvents, Assessments, Config, Overrides, PrevState) -> NewState
@@ -90,23 +87,33 @@ export function runScheduling(input: SchedulingInput): SchedulingOutput {
     occupied.push({ interval: toInterval(b.startUtc, b.endUtc), kind: "blackout" });
   }
 
-  // --- Step 1: sessions whose source event has disappeared entirely ---
-  const stillRelevantIds = new Set<string>();
-  for (const ev of sourceEvents) {
-    for (const r of config.reviews) {
-      stillRelevantIds.add(sessionId(ev.canonicalId, r.name));
-    }
-  }
+  // --- Step 2 (built first): the (sourceEvent, reviewSpec) pairs to
+  // resolve. See classType.ts for how CM/TD/TP tags in the class title
+  // change review counts when config.classTypeReviews.enabled is true;
+  // when it's false every source event gets every configured review, same
+  // as before. Moved ahead of Step 1 because "still relevant" (below) is
+  // now derived from this list rather than a flat cross-product.
+  type Pending = { ev: SourceEvent; reviewIndex: number; id: string };
+  const pending: Pending[] = buildPendingReviews(sourceEvents, config);
+
+  // --- Step 1: sessions no longer relevant -- either their source event
+  // disappeared entirely from the feed, or (when classTypeReviews is
+  // enabled) the CM/TD/TP-based review rules no longer produce this
+  // particular session id (e.g. a TP class lost its paired-review anchor
+  // once a later occurrence of the same subject arrived). `orphaned` is
+  // only set when the source class itself is actually gone -- a locked
+  // session whose source still exists just stays LOCKED in place. ---
+  const stillRelevantIds = new Set(pending.map((p) => p.id));
   for (const prev of prevSessions) {
     if (stillRelevantIds.has(prev.id)) continue; // still relevant, handled below
-    if (currentCanonicalIds.has(prev.sourceCanonicalId)) continue; // shouldn't happen, guard
+    const sourceStillExists = currentCanonicalIds.has(prev.sourceCanonicalId);
     const eff = effectiveOverrides.get(prev.id);
     const isLocked = eff?.action === "LOCK" || eff?.action === "RESCHEDULE";
     if (isLocked && prev.startUtc && prev.endUtc) {
       const locked: StudySession = {
         ...prev,
         status: "LOCKED",
-        orphaned: true,
+        orphaned: !sourceStillExists,
         hasManualOverride: true,
         needsAttentionReason: null,
         updatedAt: nowUtc,
@@ -125,15 +132,6 @@ export function runScheduling(input: SchedulingInput): SchedulingOutput {
         updatedAt: nowUtc,
       });
     }
-  }
-
-  // --- Step 2: build the list of (sourceEvent, reviewSpec) pairs to resolve ---
-  type Pending = { ev: SourceEvent; reviewIndex: number; id: string };
-  const pending: Pending[] = [];
-  for (const ev of sourceEvents) {
-    config.reviews.forEach((r, idx) => {
-      pending.push({ ev, reviewIndex: idx, id: sessionId(ev.canonicalId, r.name) });
-    });
   }
 
   // --- Step 3: resolve overridden sessions first (SKIP / LOCK / RESCHEDULE with explicit position) ---

@@ -79,6 +79,29 @@ export const configSchema = z.object({
         .default([]),
     })
     .default({ defaultWeight: 1, rules: [] }),
+  classTypeReviews: z
+    .object({
+      enabled: z.boolean().default(false),
+      // Regex (case-insensitive) with a capture group for CM/TD/TP,
+      // matched against the class title. Defaults to a parenthesized tag
+      // like "(TD)"/"(TP)"/"(CM)".
+      pattern: z.string().default("\\((CM|TD|TP)\\)"),
+      // Review names (must match reviews[].name) generated for a
+      // CM-tagged (or untagged) class. null = every configured review.
+      cmReviewNames: z.array(z.string()).nullable().default(null),
+      // Review names generated for a TD-tagged class.
+      tdReviewNames: z.array(z.string()).default(["near"]),
+      // Review names generated once per completed (or leftover) pair of
+      // same-subject TP-tagged classes.
+      tpPairReviewNames: z.array(z.string()).default(["near"]),
+    })
+    .default({
+      enabled: false,
+      pattern: "\\((CM|TD|TP)\\)",
+      cmReviewNames: null,
+      tdReviewNames: ["near"],
+      tpPairReviewNames: ["near"],
+    }),
   assessments: z.object({
     file: z.string().min(1),
     protectedTypes: z.array(z.string()).default([]),

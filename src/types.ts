@@ -196,6 +196,27 @@ export interface Config {
     defaultWeight: number;
     rules: ClassWeightRule[];
   };
+  /**
+   * Optional class-type-aware review counts, keyed off a tag in the class
+   * title (e.g. "(TD)"/"(TP)"/"(CM)"). Disabled by default -- when
+   * disabled, every source event gets every entry in `reviews`, matching
+   * the original behavior. When enabled:
+   *   - CM-tagged (or untagged) classes get `cmReviewNames` (default: all
+   *     configured reviews).
+   *   - TD-tagged classes get only `tdReviewNames`.
+   *   - TP-tagged classes are paired chronologically per subject (the
+   *     title with the tag stripped); the *second* class of each pair
+   *     gets `tpPairReviewNames`, and a trailing unpaired TP class gets
+   *     its own `tpPairReviewNames` immediately rather than waiting for a
+   *     partner that may never come.
+   */
+  classTypeReviews: {
+    enabled: boolean;
+    pattern: string;
+    cmReviewNames: string[] | null;
+    tdReviewNames: string[];
+    tpPairReviewNames: string[];
+  };
   assessments: {
     file: string;
     protectedTypes: AssessmentType[];

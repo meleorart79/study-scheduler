@@ -71,6 +71,20 @@ classWeighting:
     - pattern: "\\bTP\\b"
       weight: 0.5
 
+# Class-type-aware review counts, keyed off a "(CM)"/"(TD)"/"(TP)" tag in
+# the class title. Untagged classes (or explicitly "(CM)") behave exactly
+# like before -- every configured review (near + far). A "(TD)" class gets
+# only the near review. "(TP)" classes of the same subject (title with the
+# tag stripped) are paired off chronologically -- the second class of each
+# pair gets the near review; a trailing unpaired TP class gets its own near
+# review right away instead of waiting for a partner.
+classTypeReviews:
+  enabled: true
+  pattern: "\\((CM|TD|TP)\\)"
+  cmReviewNames: null
+  tdReviewNames: ["near"]
+  tpPairReviewNames: ["near"]
+
 assessments:
   file: "./schedule.js"
   protectedTypes: ["partiel"]
