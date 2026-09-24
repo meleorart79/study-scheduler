@@ -26,10 +26,17 @@ export interface HyperplanningCourseMeta {
 export interface HyperplanningDecoderOptions {
   academicWeek1Monday: string;
   timezone: string;
+  placesPerDay?: number;
 }
 
 export interface DecodedHyperplanning {
   events: RawNormalizedEvent[];
   courseCount: number;
   expandedOccurrenceCount: number;
+}
+
+export interface HyperplanningAcademicPeriod {
+  premierLundi: string;
+  derniereDate: string;
+  placesParJour: number;
 }
