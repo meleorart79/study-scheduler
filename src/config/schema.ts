@@ -148,6 +148,8 @@ export const configSchema = z.object({
     cronTime: timeString.default("05:00"),
     cronTimezone: z.string().default("Europe/Paris"),
   }),
+}).refine((c) => c.hyperplanning?.enabled || !!c.sourceFeed.url || !!c.sourceFeed.file, {
+  message: "configure Hyperplanning or at least one ICS source",
 });
 
 export type ConfigInput = z.infer<typeof configSchema>;
