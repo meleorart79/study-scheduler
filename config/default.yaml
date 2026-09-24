@@ -1,5 +1,14 @@
 timezone: Europe/Paris
 
+hyperplanning:
+  enabled: false
+  url: "https://hyperplanning.univ-paris13.fr/2026-2027/invite"
+  promotion: "G1MAT"
+  group: "GR14"
+  requestTimeoutSeconds: 20
+  # Verified final filter after the three timetable controls.
+  filter: "[0,2..3,6..8,10]"
+
 sourceFeed:
   # Exactly one of `file` or `url` must be set.
   #
