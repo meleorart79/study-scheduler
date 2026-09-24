@@ -69,7 +69,7 @@ async function runOnce(deps: PipelineDeps, trigger: RunTrigger): Promise<Schedul
     const rangeStartUtc = localMidnightUtc(horizonStartDate, config.timezone);
     const rangeEndUtc = localMidnightUtc(addDaysToDateString(horizonEndDate, 1), config.timezone);
 
-    let sourceEvents: import("./types.js").SourceEvent[];
+    let sourceEvents: import("./types.js").SourceEvent[] | undefined;
     let sourceHash: string | null = null;
     let sourceName = "";
     let liveVerified = false;
