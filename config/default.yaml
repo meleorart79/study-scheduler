@@ -10,8 +10,7 @@ hyperplanning:
   filter: "[0,2..3,6..8,10]"
 
 sourceFeed:
-  # Exactly one of `file` or `url` must be set.
-  #
+  # `url` and `file` may coexist. If Hyperplanning is enabled, it is tried first.
   # file: read a local .ics you exported/downloaded once (e.g. a whole
   # semester at a time). No live updates -- you re-export and drop in a
   # fresh file (or POST /admin/regenerate) whenever your timetable changes.
