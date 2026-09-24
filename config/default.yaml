@@ -1,7 +1,7 @@
 timezone: Europe/Paris
 
 hyperplanning:
-  enabled: false
+  enabled: true
   url: "https://hyperplanning.univ-paris13.fr/2026-2027/invite"
   promotion: "G1MAT"
   group: "GR14"
