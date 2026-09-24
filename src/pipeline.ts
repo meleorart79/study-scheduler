@@ -198,6 +198,12 @@ async function runOnce(deps: PipelineDeps, trigger: RunTrigger): Promise<Schedul
 
     // --- 7. Persist ---
     repo.replaceSourceEvents(sourceEvents);
+    if (liveVerified) {
+      repo.setKv("last_good_source_events", JSON.stringify(sourceEvents));
+      if (sourceHash) repo.setKv("last_good_source_hash", sourceHash);
+      repo.setKv("last_good_source_name", sourceName);
+      repo.setKv("last_good_source_at", nowIso);
+    }
     repo.replaceAssessmentsSnapshot(assessments, runId);
     repo.replaceStudySessions(output.sessions);
     repo.setKv("last_run_signature", signature);
