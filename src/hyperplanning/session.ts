@@ -60,13 +60,6 @@ export async function createHyperplanningSession(
   };
 }
 
-/**
- * USPN's Invite space sets sCrA=true, so request bodies are not AES-encrypted.
- * The request-order token ("no") is nevertheless AES-CBC encrypted exactly as
- * Hyperplanning's CommunicationProduit does it:
- *   MD5(key bytes), MD5(iv bytes) when an IV exists, otherwise a zero IV.
- * The anonymous client has an empty AES key.
- */
 function encryptOrder(order: number, iv: Buffer): string {
   const key = createHash("md5").update(Buffer.alloc(0)).digest();
   const aesIv = iv.length ? createHash("md5").update(iv).digest() : Buffer.alloc(16);
@@ -77,7 +70,7 @@ function encryptOrder(order: number, iv: Buffer): string {
 export async function hyperplanningRequest<T>(
   session: HyperplanningSession,
   functionName: string,
-  dataSecData: unknown,
+  dataSec: unknown,
   timeoutMs: number,
 ): Promise<T> {
   const order = session.nextOrder;
@@ -86,7 +79,7 @@ export async function hyperplanningRequest<T>(
     session: session.sessionId,
     no: encryptedOrder,
     id: functionName,
-    dataSec: { data: dataSecData },
+    dataSec,
   };
 
   const url = `${session.baseUrl}/appelfonction/2/${session.sessionId}/${encryptedOrder}`;
@@ -111,6 +104,55 @@ export async function hyperplanningRequest<T>(
   }
 
   session.nextOrder += 2;
-  const dataSec = json.dataSec as Record<string, unknown>;
-  return dataSec.data as T;
+  return (json.dataSec as Record<string, unknown>).data as T;
+}
+
+export async function fetchHyperplanningParameters(
+  session: HyperplanningSession,
+  start: HyperplanningStartParams,
+  timeoutMs: number,
+): Promise<{
+  premierLundi: string;
+  derniereDate: string;
+  placesParJour: number;
+}> {
+  const data = await hyperplanningRequest<Record<string, unknown>>(
+    session,
+    "FonctionParametres",
+    {
+      data: {
+        ModeJeton: false,
+        Uuid: session.iv.toString("base64"),
+        identifiantNav: "94AEB732456B22FA1C0418886B3783D69CC4AB76E93FAF0CB7F6684595981D9DBCA8D060C989483CF72411E0639B83966F0222EB00000000",
+        ongletDemarrage: start.genreOnglet,
+      },
+    },
+    timeoutMs,
+  );
+  const p = data?.parametreGeneral as Record<string, unknown> | undefined;
+  const premierLundi = valueOfTypedDate(p?.PremierLundi);
+  const derniereDate = valueOfTypedDate(p?.DerniereDate);
+  const placesParJour = Number(p?.PlacesParJour);
+  if (!premierLundi || !derniereDate || !Number.isInteger(placesParJour) || placesParJour <= 0) {
+    throw new Error("Hyperplanning parameters did not contain the academic period/grid");
+  }
+  return {
+    premierLundi: frenchDateToIso(premierLundi),
+    derniereDate: frenchDateToIso(derniereDate),
+    placesParJour,
+  };
+}
+
+function valueOfTypedDate(value: unknown): string | null {
+  if (typeof value === "string") return value;
+  if (typeof value === "object" && value !== null && typeof (value as Record<string, unknown>).V === "string") {
+    return (value as Record<string, string>).V;
+  }
+  return null;
+}
+
+function frenchDateToIso(value: string): string {
+  const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(value.trim());
+  if (!m) throw new Error(`Invalid Hyperplanning date: ${value}`);
+  return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
 }
