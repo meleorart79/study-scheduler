@@ -165,6 +165,8 @@ async function runOnce(deps: PipelineDeps, trigger: RunTrigger): Promise<Schedul
       return run;
     }
 
+    const nowIso = new Date().toISOString();
+
     // --- 5. Assessments ---
     const assessments = toDomainAssessments(schedule.examSchedule);
     const examBlackouts = computeExamBlackouts(assessments, config);
