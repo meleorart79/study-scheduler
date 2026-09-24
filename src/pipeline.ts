@@ -62,26 +62,94 @@ async function runOnce(deps: PipelineDeps, trigger: RunTrigger): Promise<Schedul
   repo.insertRun(run);
 
   try {
-    // --- 1. Fetch feed (input only; never re-served/modified) ---
-    // Either read a local .ics file (sourceFeed.file) or fetch a URL
-    // (sourceFeed.url) -- the config schema guarantees exactly one is set.
-    const feed = config.sourceFeed.file
-      ? readIcsFeedFromFile(config.sourceFeed.file, config.sourceFeed.maxResponseBytes)
-      : await fetchIcsFeed(
-          config.sourceFeed.url!,
-          config.sourceFeed.fetchTimeoutSeconds,
-          config.sourceFeed.maxResponseBytes
-        );
+    // --- 1-4. Resolve timetable source in strict priority order ---
+    const today = localDateString(new Date(), config.timezone);
+    const horizonStartDate = addDaysToDateString(today, -config.horizon.lookbackDays);
+    const horizonEndDate = addDaysToDateString(today, config.horizon.lookaheadDays);
+    const rangeStartUtc = localMidnightUtc(horizonStartDate, config.timezone);
+    const rangeEndUtc = localMidnightUtc(addDaysToDateString(horizonEndDate, 1), config.timezone);
 
-    // --- 2. Load schedule.js (sole source of truth for assessments) ---
+    let sourceEvents: import("./types.js").SourceEvent[];
+    let sourceHash: string | null = null;
+    let sourceName = "";
+    let liveVerified = false;
+
+    const tryIcs = async (feed: { text: string; hash: string }) => {
+      const parsed = parseIcsFeed(feed.text, { rangeStartUtc, rangeEndUtc, fallbackTimezone: config.timezone });
+      for (const w of parsed.warnings) logger.warn({ runId, uid: w.uid }, w.message);
+      const normalized = normalizeSourceEvents(parsed.events, repo.getAllSourceEvents(), new Date().toISOString(), runId, logger);
+      if (!normalized.length) throw new FeedFetchError("ICS source decoded zero events");
+      return { events: normalized, hash: feed.hash };
+    };
+
+    // 1. Hyperplanning
+    if (config.hyperplanning?.enabled) {
+      try {
+        const hp = await (await import("./hyperplanning/source.js")).fetchHyperplanningEvents(config);
+        sourceEvents = normalizeSourceEvents(hp.events, repo.getAllSourceEvents(), new Date().toISOString(), runId, logger);
+        sourceHash = hp.hash;
+        sourceName = `Hyperplanning ${hp.promotion}/${hp.group}`;
+        liveVerified = true;
+        logger.info({ runId, sessionId: hp.sessionId, promotion: hp.promotion, group: hp.group, events: sourceEvents.length }, "Hyperplanning source accepted");
+      } catch (err) {
+        logger.warn({ runId, err: (err as Error).message }, "Hyperplanning source failed; trying live ICS");
+      }
+    }
+
+    // 2. Existing live ICS
+    if (!sourceEvents && config.sourceFeed.url) {
+      try {
+        const feed = await fetchIcsFeed(config.sourceFeed.url, config.sourceFeed.fetchTimeoutSeconds, config.sourceFeed.maxResponseBytes);
+        const parsed = await tryIcs(feed);
+        sourceEvents = parsed.events;
+        sourceHash = parsed.hash;
+        sourceName = "live ICS";
+        liveVerified = true;
+      } catch (err) {
+        logger.warn({ runId, err: (err as Error).message }, "Live ICS source failed; trying last-known-good");
+      }
+    }
+
+    // 3. Persisted last-known-good verified timetable
+    if (!sourceEvents) {
+      const snapshot = repo.getKv("last_good_source_events");
+      if (snapshot) {
+        try {
+          const parsed = JSON.parse(snapshot) as import("./types.js").SourceEvent[];
+          if (!Array.isArray(parsed) || !parsed.length || parsed.some(e => !e.startUtc || !e.endUtc || new Date(e.endUtc) <= new Date(e.startUtc))) {
+            throw new Error("invalid last-known-good snapshot");
+          }
+          sourceEvents = parsed;
+          sourceHash = repo.getKv("last_good_source_hash");
+          sourceName = "last-known-good";
+          logger.warn({ runId, events: sourceEvents.length }, "Using persisted last-known-good timetable");
+        } catch (err) {
+          logger.warn({ runId, err: (err as Error).message }, "Persisted last-known-good timetable is invalid; trying local ICS");
+        }
+      }
+    }
+
+    // 4. Local ICS -- only when no LKG is available
+    if (!sourceEvents && config.sourceFeed.file) {
+      const feed = readIcsFeedFromFile(config.sourceFeed.file, config.sourceFeed.maxResponseBytes);
+      const parsed = await tryIcs(feed);
+      sourceEvents = parsed.events;
+      sourceHash = parsed.hash;
+      sourceName = "local ICS";
+      logger.warn({ runId }, "Using local ICS fallback; it does not replace last-known-good");
+    }
+
+    if (!sourceEvents || !sourceEvents.length) {
+      throw new FeedFetchError("No usable timetable source available");
+    }
+
+    // --- schedule.js remains the sole source of truth for assessments ---
     const schedule = loadScheduleFile(config.assessments.file);
-    const scheduleFileHash = createHash("sha256")
-      .update(readFileSync(config.assessments.file, "utf8"))
-      .digest("hex");
+    const scheduleFileHash = createHash("sha256").update(readFileSync(config.assessments.file, "utf8")).digest("hex");
 
     const overrides = repo.getAllOverrides();
     const signature = createHash("sha256")
-      .update(feed.hash)
+      .update(sourceHash ?? createHash("sha256").update(JSON.stringify(sourceEvents)).digest("hex"))
       .update(scheduleFileHash)
       .update(JSON.stringify(config))
       .update(JSON.stringify(overrides))
@@ -89,43 +157,13 @@ async function runOnce(deps: PipelineDeps, trigger: RunTrigger): Promise<Schedul
 
     const lastSignature = repo.getKv("last_run_signature");
     if (lastSignature === signature && trigger !== "manual") {
-      // Cheap no-op: nothing that could change the outcome has changed.
-      // (Manual regenerations always run fully, so an operator-triggered
-      // "regenerate now" is never silently skipped.)
       run.status = "NO_OP";
       run.finishedAt = new Date().toISOString();
       run.sourceFeedHash = signature;
       repo.updateRun(run);
-      logger.info({ runId }, "Regeneration no-op: no relevant inputs changed");
+      logger.info({ runId, source: sourceName }, "Regeneration no-op: no relevant inputs changed");
       return run;
     }
-
-    // --- 3. Parse + expand recurrence ---
-    const today = localDateString(new Date(), config.timezone);
-    const horizonStartDate = addDaysToDateString(today, -config.horizon.lookbackDays);
-    const horizonEndDate = addDaysToDateString(today, config.horizon.lookaheadDays);
-    const rangeStartUtc = localMidnightUtc(horizonStartDate, config.timezone);
-    const rangeEndUtc = localMidnightUtc(addDaysToDateString(horizonEndDate, 1), config.timezone);
-
-    const parseResult = parseIcsFeed(feed.text, {
-      rangeStartUtc,
-      rangeEndUtc,
-      fallbackTimezone: config.timezone,
-    });
-    for (const w of parseResult.warnings) {
-      logger.warn({ runId, uid: w.uid }, w.message);
-    }
-
-    // --- 4. Normalize into stable SourceEvents ---
-    const prevSourceEvents = repo.getAllSourceEvents();
-    const nowIso = new Date().toISOString();
-    const sourceEvents = normalizeSourceEvents(
-      parseResult.events,
-      prevSourceEvents,
-      nowIso,
-      runId,
-      logger
-    );
 
     // --- 5. Assessments ---
     const assessments = toDomainAssessments(schedule.examSchedule);
