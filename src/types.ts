@@ -158,6 +158,14 @@ export interface Config {
     fetchTimeoutSeconds: number;
     maxResponseBytes: number;
   };
+  hyperplanning?: {
+    enabled: boolean;
+    url: string;
+    promotion: string;
+    group: string;
+    requestTimeoutSeconds: number;
+    filter: string;
+  };
   studyWindows: {
     weekdays: TimeWindow[];
     weekends: TimeWindow[];
