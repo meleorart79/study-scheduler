@@ -8,7 +8,7 @@ import type {
   HyperplanningScheduleData,
 } from "./types.js";
 
-const SLOTS_PER_DAY = 52;
+const DEFAULT_PLACES_PER_DAY = 56;
 const SLOT_MINUTES = 15;
 const GRID_START_MINUTES = 8 * 60;
 
@@ -25,9 +25,7 @@ export function parseCompactIntList(value: string): number[] {
     if (range) {
       const start = Number(range[1]);
       const end = Number(range[2]);
-      if (!Number.isInteger(start) || !Number.isInteger(end) || end < start) {
-        throw new HyperplanningDecodeError(`Invalid compact range: ${part}`);
-      }
+      if (end < start) throw new HyperplanningDecodeError(`Invalid compact range: ${part}`);
       for (let n = start; n <= end; n++) out.push(n);
     } else if (/^\d+$/.test(part)) {
       out.push(Number(part));
@@ -38,26 +36,25 @@ export function parseCompactIntList(value: string): number[] {
   return [...new Set(out)];
 }
 
-export function decodePeriodPosition(p: number, d: number): {
-  dayIndex: number;
-  startMinutes: number;
-  endMinutes: number;
-} {
-  if (!Number.isInteger(p) || p < 0) {
-    throw new HyperplanningDecodeError(`Invalid course position p=${p}`);
-  }
-  if (!Number.isInteger(d) || d <= 0) {
-    throw new HyperplanningDecodeError(`Invalid course duration d=${d}`);
+export function decodePeriodPosition(
+  p: number,
+  d: number,
+  placesPerDay = DEFAULT_PLACES_PER_DAY,
+): { dayIndex: number; startMinutes: number; endMinutes: number } {
+  if (!Number.isInteger(p) || p < 0) throw new HyperplanningDecodeError(`Invalid course position p=${p}`);
+  if (!Number.isInteger(d) || d <= 0) throw new HyperplanningDecodeError(`Invalid course duration d=${d}`);
+  if (!Number.isInteger(placesPerDay) || placesPerDay <= 0) {
+    throw new HyperplanningDecodeError(`Invalid placesPerDay=${placesPerDay}`);
   }
 
-  const dayIndex = Math.floor(p / SLOTS_PER_DAY);
-  const slotIndex = p % SLOTS_PER_DAY;
+  const dayIndex = Math.floor(p / placesPerDay);
+  const slotIndex = p % placesPerDay;
   const startMinutes = GRID_START_MINUTES + slotIndex * SLOT_MINUTES;
   const endMinutes = startMinutes + d * SLOT_MINUTES;
 
   if (dayIndex > 6 || endMinutes > 24 * 60) {
     throw new HyperplanningDecodeError(
-      `Course position outside Monday-Sunday 08:00-24:00 grid: p=${p}, d=${d}`
+      `Course position outside Monday-Sunday 08:00-24:00 grid: p=${p}, d=${d}, placesPerDay=${placesPerDay}`
     );
   }
   return { dayIndex, startMinutes, endMinutes };
@@ -104,40 +101,28 @@ export function decodeHyperplanningSchedule(
   }
 
   const events: RawNormalizedEvent[] = [];
+  const placesPerDay = options.placesPerDay ?? DEFAULT_PLACES_PER_DAY;
+
   for (const course of data.ListeCours) {
-    if (!course || typeof course.N !== "string") {
-      throw new HyperplanningDecodeError("Course is missing its stable N identifier");
-    }
+    if (!course || typeof course.N !== "string") throw new HyperplanningDecodeError("Course is missing its stable N identifier");
     if (typeof course.p !== "number" || typeof course.d !== "number") {
       throw new HyperplanningDecodeError(`Course ${course.N} is missing numeric p/d`);
     }
-
-    // nbE=0 entries in the captured HAR are non-published/placeholder service
-    // entries; accepting them would create fake calendar events.
     if (course.nbE === 0) continue;
 
     const weeks = course.dom ? parseCompactIntList(course.dom) : [];
-    if (!weeks.length) {
-      throw new HyperplanningDecodeError(`Course ${course.N} has no dom week set`);
-    }
+    if (!weeks.length) throw new HyperplanningDecodeError(`Course ${course.N} has no dom week set`);
 
-    const position = decodePeriodPosition(course.p, course.d);
+    const position = decodePeriodPosition(course.p, course.d, placesPerDay);
     const m = meta(course);
-    if (!m.subject) {
-      throw new HyperplanningDecodeError(`Course ${course.N} has no subject label`);
-    }
+    if (!m.subject) throw new HyperplanningDecodeError(`Course ${course.N} has no subject label`);
 
     const { hour: startHour, minute: startMinute } = minutesToParts(position.startMinutes);
     const { hour: endHour, minute: endMinute } = minutesToParts(position.endMinutes);
 
     for (const week of weeks) {
-      if (week < 1) {
-        throw new HyperplanningDecodeError(`Course ${course.N} contains invalid week ${week}`);
-      }
-      const date = addDaysToDateString(
-        options.academicWeek1Monday,
-        (week - 1) * 7 + position.dayIndex,
-      );
+      if (week < 1) throw new HyperplanningDecodeError(`Course ${course.N} contains invalid week ${week}`);
+      const date = addDaysToDateString(options.academicWeek1Monday, (week - 1) * 7 + position.dayIndex);
       const start = zonedTimeToUtc(
         Number(date.slice(0, 4)), Number(date.slice(5, 7)), Number(date.slice(8, 10)),
         startHour, startMinute, 0, options.timezone,
@@ -146,16 +131,12 @@ export function decodeHyperplanningSchedule(
         Number(date.slice(0, 4)), Number(date.slice(5, 7)), Number(date.slice(8, 10)),
         endHour, endMinute, 0, options.timezone,
       );
+      if (end <= start) throw new HyperplanningDecodeError(`Decoded event has end <= start for ${course.N}`);
 
-      if (end <= start) {
-        throw new HyperplanningDecodeError(`Decoded event has end <= start for ${course.N}`);
-      }
-
-      const suffix = m.type ? ` (${m.type})` : "";
       events.push({
-        uid: `hyperplanning:${course.N}:${week}`,
+        uid: `hyperplanning:${course.N}:${date}:${position.startMinutes}`,
         recurrenceKey: date,
-        summary: m.subject + suffix,
+        summary: m.type ? `${m.subject} (${m.type})` : m.subject,
         startUtc: start,
         endUtc: end,
         sourceTimezone: options.timezone,
