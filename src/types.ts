@@ -145,7 +145,7 @@ export interface ClassWeightRule {
 export interface Config {
   timezone: string;
   sourceFeed: {
-    /** Fetch the university timetable over HTTP(S). Mutually exclusive with `file`. */
+    /** Fetch the university timetable over HTTP(S). */
     url?: string;
     /**
      * Read the university timetable from a local .ics file on disk instead of
