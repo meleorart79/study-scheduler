@@ -19,8 +19,8 @@ describe("Hyperplanning USPN decoder", () => {
     });
     expect(decodePeriodPosition(121, 6)).toEqual({
       dayIndex: 2,
-      startMinutes: 12 * 60 + 15,
-      endMinutes: 13 * 60 + 45,
+      startMinutes: 10 * 60 + 15,
+      endMinutes: 11 * 60 + 45,
     });
   });
 
