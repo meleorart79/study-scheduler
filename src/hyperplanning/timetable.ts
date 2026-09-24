@@ -14,10 +14,9 @@ function labelFrom(value: unknown): string | null {
 export function extractCourseMeta(course: HyperplanningCourse): HyperplanningCourseMeta {
   const entries = course.listeC ?? [];
   const one = (g: number) => entries.find(x => x.G === g)?.C;
-  const labels = (v: unknown): string | null => {
-    if (Array.isArray(v)) return v.map(labelFrom).filter((x): x is string => !!x).join(" / ") || null;
-    return labelFrom(v);
-  };
+  const labels = (v: unknown): string | null => Array.isArray(v)
+    ? v.map(labelFrom).filter((x): x is string => !!x).join(" / ") || null
+    : labelFrom(v);
   return {
     subject: labels(one(0)),
     teacher: labels(one(1)),
@@ -33,14 +32,9 @@ export async function fetchTimetable(
   filter: string,
   timeoutMs: number,
 ): Promise<Map<string, HyperplanningCourseMeta>> {
-  const data = await hyperplanningRequest<TimetableResponse>(
-    session,
-    "FonctionEmploiDuTemps",
-    {
-      Signature: {
-        Onglet: "DIPLOME.EDT.EDT_GRILLE",
-        listeRecherche: [resource],
-      },
+  const data = await hyperplanningRequest<TimetableResponse>(session, "FonctionEmploiDuTemps", {
+    Signature: { Onglet: "DIPLOME.EDT.EDT_GRILLE", listeRecherche: [resource] },
+    data: {
       GenrePeriodeEDT: 2,
       GenreAffichageEDT: 0,
       FiltreRessources: { _T: 26, V: filter },
@@ -52,16 +46,11 @@ export async function fetchTimetable(
       avecInfosAppel: false,
       Domaine: { _T: 8, V: "[6]" },
     },
-    timeoutMs,
-  );
-  if (!Array.isArray(data?.ListeCours)) {
-    throw new Error("Hyperplanning timetable response has no ListeCours");
-  }
+  }, timeoutMs);
 
+  if (!Array.isArray(data?.ListeCours)) throw new Error("Hyperplanning timetable response has no ListeCours");
   const result = new Map<string, HyperplanningCourseMeta>();
-  for (const course of data.ListeCours) {
-    if (course?.N) result.set(course.N, extractCourseMeta(course));
-  }
+  for (const course of data.ListeCours) if (course?.N) result.set(course.N, extractCourseMeta(course));
   if (!result.size) throw new Error("Hyperplanning timetable response contained no courses");
   return result;
 }
