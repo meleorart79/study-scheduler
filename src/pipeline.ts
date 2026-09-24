@@ -219,9 +219,11 @@ async function runOnce(deps: PipelineDeps, trigger: RunTrigger): Promise<Schedul
     repo.setKv("last_good_ics", studyIcs);
     repo.setKv("last_good_ics_generated_at", nowIso);
 
-    const schoolIcs = generateSchoolIcs(sourceEvents, config, { domain });
-    repo.setKv("last_good_school_ics", schoolIcs);
-    repo.setKv("last_good_school_ics_generated_at", nowIso);
+    if (liveVerified) {
+      const schoolIcs = generateSchoolIcs(sourceEvents, config, { domain });
+      repo.setKv("last_good_school_ics", schoolIcs);
+      repo.setKv("last_good_school_ics_generated_at", nowIso);
+    }
 
     run.status = "SUCCESS";
     run.finishedAt = new Date().toISOString();
