@@ -15,7 +15,7 @@ export async function createHyperplanningSession(inviteUrl:string, timeoutMs:num
   return {baseUrl:inviteUrl.replace(/\/invite(?:[?#].*)?$/,""),sessionId,iv:randomBytes(16),nextOrder:1,start:{sessionId,genreEspace:Number(fields.get("a")??2),genreAcces:fields.has("b")?Number(fields.get("b")):undefined,genreOnglet:fields.get("c"),numeroRessource:fields.has("e")?Number(fields.get("e")):undefined,libelleRecherche:fields.get("h")}};
 }
 
-function encryptOrder(order:number,iv:Buffer){const key=createHash("md5").update(Buffer.alloc(0)).digest();const aesIv=iv.length?createHash("md5").update(iv).digest():Buffer.alloc(16);const cipher=createCipheriv("aes-128-cbc",key,aesIv);return Buffer.concat([cipher.update(String(order),"utf8"),cipher.final()]).toString("hex");}
+export function encryptOrder(order:number,iv:Buffer){const key=createHash("md5").update(Buffer.alloc(0)).digest();const aesIv=iv.length?createHash("md5").update(iv).digest():Buffer.alloc(16);const cipher=createCipheriv("aes-128-cbc",key,aesIv);return Buffer.concat([cipher.update(String(order),"utf8"),cipher.final()]).toString("hex");}
 
 export async function hyperplanningRequest<T>(session:HyperplanningSession,functionName:string,dataSec:unknown,timeoutMs:number):Promise<T>{
   const order=session.nextOrder, encryptedOrder=encryptOrder(order,order===1?Buffer.alloc(0):session.iv);
