@@ -71,7 +71,7 @@ function fieldLabel(entry: { G: number; C?: unknown } | undefined): string | nul
     return labels.length ? labels.join(" / ") : null;
   }
   if (typeof c === "object" && c !== null && typeof (c as Record<string, unknown>).L === "string") {
-    return (c as Record<string, string>).L;
+      return (c as Record<string, unknown>).L as string;
   }
   return null;
 }

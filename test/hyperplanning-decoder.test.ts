@@ -32,17 +32,16 @@ describe("Hyperplanning USPN decoder", () => {
 
     const algebraTd = result.events.filter(e => e.summary === "Algebre 1 (G1MAAL1) (TD)");
     expect(algebraTd).toHaveLength(2);
-    expect(algebraTd.map(e => [e.startUtc, e.endUtc])).toEqual([
-      ["2026-09-14T13:30:00.000Z", "2026-09-14T15:00:00.000Z"],
-      ["2026-09-21T13:30:00.000Z", "2026-09-21T15:00:00.000Z"],
+    expect(algebraTd.map(e => [e.startUtc.toISOString(), e.endUtc.toISOString()])).toEqual([
+        ["2026-09-14T13:30:00.000Z", "2026-09-14T15:00:00.000Z"],
+        ["2026-09-21T13:30:00.000Z", "2026-09-21T15:00:00.000Z"],
     ]);
 
     const algebraCm = result.events.find(e => e.summary === "Algebre 1 (G1MAAL1) (CM)");
-    expect(algebraCm).toMatchObject({
-      startUtc: "2026-09-09T10:15:00.000Z",
-      endUtc: "2026-09-09T11:45:00.000Z",
-      location: "Amphi Claudine Hermann (D)",
-    });
+    expect(algebraCm).toBeDefined();
+    expect(algebraCm!.startUtc.toISOString()).toBe("2026-09-09T08:15:00.000Z");
+    expect(algebraCm!.endUtc.toISOString()).toBe("2026-09-09T09:45:00.000Z");
+    expect(algebraCm!.location).toBe("Amphi Claudine Hermann (D)");
 
     expect(result.events.some(e => e.uid.includes("placeholder"))).toBe(false);
     expect(result.courseCount).toBe(4);

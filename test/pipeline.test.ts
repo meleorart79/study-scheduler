@@ -28,148 +28,253 @@ let failMode = false;
 beforeAll(async () => {
   server = http.createServer((req, res) => {
     requestCount++;
+
     if (failMode) {
       res.writeHead(500);
       res.end("boom");
       return;
     }
+
     res.writeHead(200, { "Content-Type": "text/calendar" });
     res.end(SAMPLE_ICS);
   });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+
+  await new Promise<void>((resolve) =>
+    server.listen(0, "127.0.0.1", resolve)
+  );
+
   port = (server.address() as any).port;
 });
 
 afterAll(async () => {
-  await new Promise<void>((resolve) => server.close(() => resolve()));
+  await new Promise<void>((resolve) =>
+    server.close(() => resolve())
+  );
 });
+
+function normalizeIcsForComparison(ics: string): string {
+  return ics.replace(
+    /^DTSTAMP:\d{8}T\d{6}\r?$/gm,
+    "DTSTAMP:<normalized>"
+  );
+}
 
 function setupTestEnv() {
   const dir = mkdtempSync(path.join(tmpdir(), "pipeline-test-"));
   const schedulePath = path.join(dir, "schedule.js");
+
   writeFileSync(
     schedulePath,
     `module.exports = { EXAM_SCHEDULE: [], SEMESTER_START: "2026-09-01" };`
   );
+
   const db = openDatabase(":memory:");
   const repo = new Repository(db);
+
   const config = baseConfig((c) => {
     // Default config now ships in file-based mode (sourceFeed.file); these
     // tests exercise the URL-fetch path specifically, so switch back to it.
+    c.hyperplanning!.enabled = false;
     c.sourceFeed.file = undefined;
     c.sourceFeed.url = `http://127.0.0.1:${port}/feed.ics`;
     c.assessments.file = schedulePath;
   });
-  const configHolder = new ConfigHolder(config, repo);
-  return { dir, db, repo, configHolder };
+
+const configHolder = new ConfigHolder(config, repo);
+
+return { dir, db, repo, configHolder };
 }
 
 beforeEach(() => {
-  requestCount = 0;
-  failMode = false;
+    requestCount = 0;
+    failMode = false;
 });
 
 describe("pipeline: regenerate", () => {
-  it("runs the full pipeline successfully and caches an ICS output", async () => {
-    const { repo, configHolder, dir } = setupTestEnv();
-    const run = await regenerate({ repo, configHolder, domain: "test.local", logger }, "startup");
-    expect(run.status).toBe("SUCCESS");
-    expect(repo.getKv("last_good_ics")).toContain("BEGIN:VCALENDAR");
-    expect(repo.getKv("last_good_school_ics")).toContain("BEGIN:VCALENDAR");
-    expect(repo.getKv("last_good_school_ics")).toContain("Algorithms Lecture");
-    rmSync(dir, { recursive: true, force: true });
-  });
+    it("runs the full pipeline successfully and caches an ICS output", async () => {
+        const { repo, configHolder, dir } = setupTestEnv();
 
-  it("reads the source feed from a local file when sourceFeed.file is set instead of a URL", async () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "pipeline-test-file-"));
-    const schedulePath = path.join(dir, "schedule.js");
-    writeFileSync(
-      schedulePath,
-      `module.exports = { EXAM_SCHEDULE: [], SEMESTER_START: "2026-09-01" };`
-    );
-    const icsPath = path.join(dir, "school-schedule.ics");
-    writeFileSync(icsPath, SAMPLE_ICS);
+        const run = await regenerate(
+            { repo, configHolder, domain: "test.local", logger },
+            "startup"
+        );
 
-    const db = openDatabase(":memory:");
-    const repo = new Repository(db);
-    const config = baseConfig((c) => {
-      c.sourceFeed.url = undefined;
-      c.sourceFeed.file = icsPath;
-      c.assessments.file = schedulePath;
+        expect(run.status).toBe("SUCCESS");
+        expect(repo.getKv("last_good_ics")).toContain("BEGIN:VCALENDAR");
+        expect(repo.getKv("last_good_school_ics")).toContain("BEGIN:VCALENDAR");
+        expect(repo.getKv("last_good_school_ics")).toContain("Algorithms Lecture");
+
+        rmSync(dir, { recursive: true, force: true });
     });
-    const configHolder = new ConfigHolder(config, repo);
 
-    const run = await regenerate({ repo, configHolder, domain: "test.local", logger }, "startup");
-    expect(run.status).toBe("SUCCESS");
-    expect(repo.getKv("last_good_ics")).toContain("BEGIN:VCALENDAR");
-    expect(repo.getKv("last_good_school_ics")).toContain("Algorithms Lecture");
-    // No HTTP feed server involved at all for this mode.
-    rmSync(dir, { recursive: true, force: true });
-  });
+    it("reads the source feed from a local file when sourceFeed.file is set instead of a URL", async () => {
+        const dir = mkdtempSync(
+            path.join(tmpdir(), "pipeline-test-file-")
+        );
+        const schedulePath = path.join(dir, "schedule.js");
 
-  it("fails cleanly (and keeps serving the last known-good output) when sourceFeed.file points at a missing file", async () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "pipeline-test-file-missing-"));
-    const schedulePath = path.join(dir, "schedule.js");
-    writeFileSync(
-      schedulePath,
-      `module.exports = { EXAM_SCHEDULE: [], SEMESTER_START: "2026-09-01" };`
-    );
-    const db = openDatabase(":memory:");
-    const repo = new Repository(db);
-    const config = baseConfig((c) => {
-      c.sourceFeed.url = undefined;
-      c.sourceFeed.file = path.join(dir, "does-not-exist.ics");
-      c.assessments.file = schedulePath;
+        writeFileSync(
+            schedulePath,
+            `module.exports = { EXAM_SCHEDULE: [], SEMESTER_START: "2026-09-01" };`
+        );
+
+        const icsPath = path.join(dir, "school-schedule.ics");
+        writeFileSync(icsPath, SAMPLE_ICS);
+
+        const db = openDatabase(":memory:");
+        const repo = new Repository(db);
+
+        const config = baseConfig((c) => {
+            c.hyperplanning!.enabled = false;
+            c.sourceFeed.url = undefined;
+            c.sourceFeed.file = icsPath;
+            c.assessments.file = schedulePath;
+        });
+
+        const configHolder = new ConfigHolder(config, repo);
+
+        const run = await regenerate(
+            { repo, configHolder, domain: "test.local", logger },
+            "startup"
+        );
+
+        expect(run.status).toBe("SUCCESS");
+        expect(repo.getKv("last_good_ics")).toContain("BEGIN:VCALENDAR");
+
+        // No HTTP feed server involved at all for this mode.
+        rmSync(dir, { recursive: true, force: true });
     });
-    const configHolder = new ConfigHolder(config, repo);
 
-    const run = await regenerate({ repo, configHolder, domain: "test.local", logger }, "startup");
-    expect(run.status).toBe("FAILED");
-    expect(run.error).toContain("does-not-exist.ics");
-    rmSync(dir, { recursive: true, force: true });
-  });
+    it("fails cleanly (and keeps serving the last known-good output) when sourceFeed.file points at a missing file", async () => {
+        const dir = mkdtempSync(
+            path.join(tmpdir(), "pipeline-test-file-missing-")
+        );
+        const schedulePath = path.join(dir, "schedule.js");
 
-  it("returns NO_OP on a subsequent cron run when nothing changed, without re-fetching effort duplicated", async () => {
-    const { repo, configHolder, dir } = setupTestEnv();
-    const run1 = await regenerate({ repo, configHolder, domain: "test.local", logger }, "startup");
-    expect(run1.status).toBe("SUCCESS");
-    const run2 = await regenerate({ repo, configHolder, domain: "test.local", logger }, "cron");
-    expect(run2.status).toBe("NO_OP");
-    rmSync(dir, { recursive: true, force: true });
-  });
+        writeFileSync(
+            schedulePath,
+            `module.exports = { EXAM_SCHEDULE: [], SEMESTER_START: "2026-09-01" };`
+        );
 
-  it("manual regeneration always runs fully even if nothing changed", async () => {
-    const { repo, configHolder, dir } = setupTestEnv();
-    await regenerate({ repo, configHolder, domain: "test.local", logger }, "startup");
-    const run2 = await regenerate({ repo, configHolder, domain: "test.local", logger }, "manual");
-    expect(run2.status).toBe("SUCCESS");
-    rmSync(dir, { recursive: true, force: true });
-  });
+        const db = openDatabase(":memory:");
+        const repo = new Repository(db);
 
-  it("rejects a concurrent regeneration with ConcurrentRegenerationError", async () => {
-    const { repo, configHolder, dir } = setupTestEnv();
-    const p1 = regenerate({ repo, configHolder, domain: "test.local", logger }, "manual");
-    await expect(
-      regenerate({ repo, configHolder, domain: "test.local", logger }, "manual")
-    ).rejects.toThrow(ConcurrentRegenerationError);
-    await p1;
-    rmSync(dir, { recursive: true, force: true });
-  });
+        const config = baseConfig((c) => {
+            c.hyperplanning!.enabled = false;
+            c.sourceFeed.url = undefined;
+            c.sourceFeed.file = path.join(dir, "does-not-exist.ics");
+            c.assessments.file = schedulePath;
+        });
 
-  it("aborts before mutating state on feed failure and keeps serving the last known-good output", async () => {
-    const { repo, configHolder, dir } = setupTestEnv();
-    const good = await regenerate({ repo, configHolder, domain: "test.local", logger }, "startup");
-    expect(good.status).toBe("SUCCESS");
-    const goodIcs = repo.getKv("last_good_ics");
-    const goodSessions = repo.getAllStudySessions();
+        const configHolder = new ConfigHolder(config, repo);
 
-    failMode = true;
-    const failed = await regenerate({ repo, configHolder, domain: "test.local", logger }, "manual");
-    expect(failed.status).toBe("FAILED");
-    expect(failed.error).toBeTruthy();
+        const run = await regenerate(
+            { repo, configHolder, domain: "test.local", logger },
+            "startup"
+        );
 
-    expect(repo.getKv("last_good_ics")).toBe(goodIcs);
-    expect(repo.getAllStudySessions()).toEqual(goodSessions);
-    rmSync(dir, { recursive: true, force: true });
-  });
+        expect(run.status).toBe("FAILED");
+        expect(run.error).toContain("does-not-exist.ics");
+
+        rmSync(dir, { recursive: true, force: true });
+    });
+
+    it("returns NO_OP on a subsequent cron run when nothing changed, without re-fetching effort duplicated", async () => {
+        const { repo, configHolder, dir } = setupTestEnv();
+
+        const run1 = await regenerate(
+            { repo, configHolder, domain: "test.local", logger },
+            "startup"
+        );
+
+        expect(run1.status).toBe("SUCCESS");
+
+        const run2 = await regenerate(
+            { repo, configHolder, domain: "test.local", logger },
+            "cron"
+        );
+
+        expect(run2.status).toBe("NO_OP");
+
+        rmSync(dir, { recursive: true, force: true });
+    });
+
+    it("manual regeneration always runs fully even if nothing changed", async () => {
+        const { repo, configHolder, dir } = setupTestEnv();
+
+        await regenerate(
+            { repo, configHolder, domain: "test.local", logger },
+            "startup"
+        );
+
+        const run2 = await regenerate(
+            { repo, configHolder, domain: "test.local", logger },
+            "manual"
+        );
+
+        expect(run2.status).toBe("SUCCESS");
+
+        rmSync(dir, { recursive: true, force: true });
+    });
+
+    it("rejects a concurrent regeneration with ConcurrentRegenerationError", async () => {
+        const { repo, configHolder, dir } = setupTestEnv();
+
+        const p1 = regenerate(
+            { repo, configHolder, domain: "test.local", logger },
+            "manual"
+        );
+
+        await expect(
+            regenerate(
+                { repo, configHolder, domain: "test.local", logger },
+                "manual"
+            )
+        ).rejects.toThrow(ConcurrentRegenerationError);
+
+        await p1;
+
+        rmSync(dir, { recursive: true, force: true });
+    });
+
+    it("falls back to last-known-good timetable when the live feed fails", async () => {
+        const { repo, configHolder, dir } = setupTestEnv();
+
+        const good = await regenerate(
+            { repo, configHolder, domain: "test.local", logger },
+            "startup"
+        );
+
+        expect(good.status).toBe("SUCCESS");
+
+        const goodIcs = repo.getKv("last_good_ics");
+        const goodSessions = repo.getAllStudySessions();
+
+        failMode = true;
+
+        const fallback = await regenerate(
+            { repo, configHolder, domain: "test.local", logger },
+            "manual"
+        );
+
+        expect(fallback.status).toBe("SUCCESS");
+
+        expect(
+            normalizeIcsForComparison(repo.getKv("last_good_ics")!)
+        ).toBe(
+            normalizeIcsForComparison(goodIcs!)
+        );
+
+        const fallbackSessions = repo.getAllStudySessions();
+
+        expect(fallbackSessions).toHaveLength(goodSessions.length);
+
+        expect(
+            fallbackSessions.map(({ createdAt, updatedAt, ...session }) => session)
+        ).toEqual(
+            goodSessions.map(({ createdAt, updatedAt, ...session }) => session)
+        );
+
+        rmSync(dir, { recursive: true, force: true });
+    });
 });

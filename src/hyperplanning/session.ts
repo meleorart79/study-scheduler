@@ -10,7 +10,10 @@ export async function createHyperplanningSession(inviteUrl:string, timeoutMs:num
   const m=/Start\s*\(\s*\{([^}]*)\}\s*\)/.exec(html);
   if(!m) throw new Error("Hyperplanning invite did not contain a Start(...) session initializer");
   const fields=new Map<string,string>();
-  for(const part of m[1].split(",")){const x=/\s*([A-Za-z_$][\w$]*)\s*:\s*(?:'([^']*)'|"([^"]*)"|(\d+)|([^,]+))\s*/.exec(part);if(x)fields.set(x[1],x[2]??x[3]??x[4]??x[5]??"");}
+    for (const part of m[1]!.split(",")) {
+        const x = /\s*([A-Za-z_$][\w$]*)\s*:\s*(?:'([^']*)'|"([^"]*)"|(\d+)|([^,]+))\s*/.exec(part);
+        if (x) fields.set(x[1]!, x[2] ?? x[3] ?? x[4] ?? x[5] ?? "");
+    }
   const sessionId=Number(fields.get("i")); if(!Number.isSafeInteger(sessionId)||sessionId<=0)throw new Error("Hyperplanning invite returned an invalid session id");
   return {baseUrl:inviteUrl.replace(/\/invite(?:[?#].*)?$/,""),sessionId,iv:randomBytes(16),nextOrder:1,start:{sessionId,genreEspace:Number(fields.get("a")??2),genreAcces:fields.has("b")?Number(fields.get("b")):undefined,genreOnglet:fields.get("c"),numeroRessource:fields.has("e")?Number(fields.get("e")):undefined,libelleRecherche:fields.get("h")}};
 }
@@ -36,4 +39,8 @@ export async function fetchHyperplanningParameters(session:HyperplanningSession,
   return {premierLundi:frenchDateToIso(a),derniereDate:frenchDateToIso(b),placesParJour:n};
 }
 function valueOfTypedDate(v:unknown){if(typeof v==="string")return v;if(typeof v==="object"&&v!==null&&typeof(v as Record<string,unknown>).V==="string")return(v as Record<string,string>).V;return null}
-function frenchDateToIso(v:string){const m=/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(v.trim());if(!m)throw new Error(`Invalid Hyperplanning date: ${v}`);return `${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`}
+function frenchDateToIso(v: string) {
+    const m = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(v.trim());
+    if (!m) throw new Error(`Invalid Hyperplanning date: ${v}`);
+    return `${m[3]!}-${m[2]!.padStart(2, "0")}-${m[1]!.padStart(2, "0")}`;
+}

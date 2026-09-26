@@ -25,13 +25,13 @@ studyWindows:
     - start: "08:30"
       end: "11:45"
     - start: "12:30"
-      end: "22:00"
+      end: "23:45"
 
   weekends:
     - start: "08:00"
       end: "12:00"
     - start: "16:00"
-      end: "22:00"
+      end: "23:45"
 
 grid:
   blockMinutes: 15
@@ -119,8 +119,8 @@ recurringBlockedPeriods:
     reason: "Basketball"
     bufferMinutes: 30
   - weekday: "wednesday"
-    start: "17:00"
-    end: "18:30"
+    start: "18:30"
+    end: "20:00"
     reason: "Basketball"
     bufferMinutes: 30
   - weekday: "friday"

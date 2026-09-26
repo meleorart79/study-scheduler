@@ -12,7 +12,7 @@ function weeks(value: string | { V?: string } | undefined): number[] {
   const out: number[] = [];
   for (const t of text.replace(/^\[/,"").replace(/\]$/,"").split(",")) {
     const r = /^(\d+)\.\.(\d+)$/.exec(t.trim());
-    if (r) for (let n=+r[1]; n<=+r[2]; n++) out.push(n);
+    if (r) for (let n=+r[1]!; n<=+r[2]!; n++) out.push(n);
     else if (/^\d+$/.test(t.trim())) out.push(+t.trim());
     else throw new Error("Invalid Hyperplanning week set");
   }
@@ -35,23 +35,72 @@ export async function fetchAcademicSessions(
   if (!Array.isArray(data?.listeElements) || !data.listeElements.length) throw new Error("FonctionDateDebutCours returned no course elements");
 
   const events: RawNormalizedEvent[] = [];
-  for (const el of data.listeElements) for (const c of el.ListeCours ?? []) {
-    if (!c.N || !Number.isInteger(c.p) || !Number.isInteger(c.d)) throw new Error("Malformed Hyperplanning session");
-    const ws=weeks(c.dom); if (!ws.length) throw new Error("Hyperplanning session has no weeks");
-    const day=Math.floor(c.p/period.placesParJour), slot=c.p%period.placesParJour;
-    const start=8*60+slot*15, end=start+c.d*15;
-    if (day>6 || c.d<=0 || end>1440) throw new Error("Invalid Hyperplanning session position");
-    const m=metadata.get(c.N), subject=m?.subject ?? el.L ?? "Matière à préciser";
-    for (const w of ws) {
-      const date=addDaysToDateString(period.premierLundi,(w-1)*7+day);
-      if (date<period.premierLundi || date>period.derniereDate) throw new Error("Decoded date outside Hyperplanning period");
-      const sh=Math.floor(start/60), sm=start%60, eh=Math.floor(end/60), em=end%60;
-      const s=zonedTimeToUtc(+date.slice(0,4),+date.slice(5,7),+date.slice(8,10),sh,sm,0,timezone);
-      const e=zonedTimeToUtc(+date.slice(0,4),+date.slice(5,7),+date.slice(8,10),eh,em,0,timezone);
-      if(e<=s) throw new Error("Decoded session has invalid duration");
-      events.push({uid:`hyperplanning:${c.N}:${date}:${start}`,recurrenceKey:date,summary:m?.type?`${subject} (${m.type})`:subject,startUtc:s,endUtc:e,sourceTimezone:timezone,wasFloating:false,location:m?.room??null});
+    for (const el of data.listeElements) for (const c of el.ListeCours ?? []) {
+        if (!c.N || !Number.isInteger(c.p) || !Number.isInteger(c.d))
+            throw new Error("Malformed Hyperplanning session");
+
+        const p = c.p!;
+        const d = c.d!;
+
+        const day = Math.floor(p / period.placesParJour);
+        const slot = p % period.placesParJour;
+
+        const start = 8 * 60 + slot * 15;
+        const end = start + d * 15;
+
+        if (day > 6 || d <= 0 || end > 1440)
+            throw new Error("Invalid Hyperplanning session position");
+
+        const m = metadata.get(c.N);
+        const subject = m?.subject ?? el.L ?? "Matière à préciser";
+
+        const ws = weeks(c.dom);
+        if (!ws.length)
+            throw new Error("Hyperplanning session has no weeks");
+
+        for (const w of ws) {
+            const date = addDaysToDateString(
+                period.premierLundi,
+                (w - 1) * 7 + day
+            );
+
+            if (date < period.premierLundi || date > period.derniereDate)
+                throw new Error("Decoded date outside Hyperplanning period");
+
+            const sh = Math.floor(start / 60);
+            const sm = start % 60;
+            const eh = Math.floor(end / 60);
+            const em = end % 60;
+
+            const s = zonedTimeToUtc(
+                +date.slice(0, 4),
+                +date.slice(5, 7),
+                +date.slice(8, 10),
+                sh, sm, 0, timezone
+            );
+
+            const e = zonedTimeToUtc(
+                +date.slice(0, 4),
+                +date.slice(5, 7),
+                +date.slice(8, 10),
+                eh, em, 0, timezone
+            );
+
+            if (e <= s)
+                throw new Error("Decoded session has invalid duration");
+
+            events.push({
+                uid: `hyperplanning:${c.N}:${date}:${start}`,
+                recurrenceKey: date,
+                summary: m?.type ? `${subject} (${m.type})` : subject,
+                startUtc: s,
+                endUtc: e,
+                sourceTimezone: timezone,
+                wasFloating: false,
+                location: m?.room ?? null,
+            });
+        }
     }
-  }
   if (!events.length) throw new Error("FonctionDateDebutCours decoded zero sessions");
   return events;
 }
