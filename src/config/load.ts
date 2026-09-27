@@ -16,7 +16,7 @@ export function loadConfig(path: string): Config {
   }
   const raw = parseYaml(readFileSync(path, "utf8")) as unknown;
 
-  const merged = mergeEnvOverrides(raw);
+  const merged = raw;
 
   const result = configSchema.safeParse(merged);
   if (!result.success) {
@@ -27,30 +27,6 @@ export function loadConfig(path: string): Config {
     );
   }
   return result.data as Config;
-}
-
-function mergeEnvOverrides(raw: unknown): unknown {
-  const obj = (
-    typeof raw === "object" && raw !== null ? raw : {}
-  ) as Record<string, any>;
-
-  // STUDY_FEED_FILE takes precedence over STUDY_FEED_URL if both happen to
-  // be set, and clears the other field so the schema's "exactly one of
-  // url/file" refinement doesn't reject a leftover value from the YAML.
-  if (process.env.STUDY_FEED_FILE) {
-    obj.sourceFeed = {
-      ...(obj.sourceFeed ?? {}),
-      file: process.env.STUDY_FEED_FILE,
-      url: undefined,
-    };
-  } else if (process.env.STUDY_FEED_URL) {
-    obj.sourceFeed = {
-      ...(obj.sourceFeed ?? {}),
-      url: process.env.STUDY_FEED_URL,
-      file: undefined,
-    };
-  }
-  return obj;
 }
 
 /** The token clients must present to subscribe to the generated ICS feed. */

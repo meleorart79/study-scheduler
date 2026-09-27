@@ -1,53 +1,53 @@
 import { z } from "zod";
 
 const timeString = z
-  .string()
-  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "expected HH:mm 24h time");
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "expected HH:mm 24h time");
 
 const weekdayEnum = z.enum([
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-  "saturday",
-  "sunday",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
 ]);
 
 const timeWindowSchema = z
-  .object({
-    start: timeString,
-    end: timeString,
-  })
-  .refine((w) => w.start < w.end, {
-    message: "window start must be before end",
-  });
+    .object({
+        start: timeString,
+        end: timeString,
+    })
+    .refine((w) => w.start < w.end, {
+        message: "window start must be before end",
+    });
 
 export const configSchema = z.object({
-  timezone: z.string().min(1),
-  sourceFeed: z.object({
-    url: z.string().url().optional(),
-    file: z.string().min(1).optional(),
-    fetchTimeoutSeconds: z.number().int().positive().default(15),
-    maxResponseBytes: z.number().int().positive().default(5_000_000),
-  }),
-  hyperplanning: z.object({
-    enabled: z.boolean().default(false),
-    url: z.string().url(),
-    promotion: z.string().min(1).default("G1MAT"),
-    group: z.string().min(1).default("GR14"),
-    requestTimeoutSeconds: z.number().int().positive().default(20),
-    filter: z.string().min(1).default("[0,2..3,6..8,10]"),
-  }).optional(),
-  studyWindows: z.object({
-    weekdays: z.array(timeWindowSchema).min(1),
-    weekends: z.array(timeWindowSchema).min(1),
-  }),
-  grid: z.object({
-    blockMinutes: z.number().int().positive().default(15),
-    sessionMinutes: z.number().int().positive().default(90),
-    minBufferMinutes: z.number().int().nonnegative().default(15),
-  }),
+    timezone: z.string().min(1),
+    sourceFeed: z.object({
+        url: z.string().url().optional(),
+        file: z.string().min(1).optional(),
+        fetchTimeoutSeconds: z.number().int().positive().default(15),
+        maxResponseBytes: z.number().int().positive().default(5_000_000),
+    }),
+    hyperplanning: z.object({
+        enabled: z.boolean().default(false),
+        url: z.string().url(),
+        promotion: z.string().min(1).default("G1MAT"),
+        group: z.string().min(1).default("GR14"),
+        requestTimeoutSeconds: z.number().int().positive().default(20),
+        filter: z.string().min(1).default("[0,2..3,6..8,10]"),
+    }).optional(),
+    studyWindows: z.object({
+        weekdays: z.array(timeWindowSchema).min(1),
+        weekends: z.array(timeWindowSchema).min(1),
+    }),
+    grid: z.object({
+        blockMinutes: z.number().int().positive().default(15),
+        sessionMinutes: z.number().int().positive().default(90),
+        minBufferMinutes: z.number().int().nonnegative().default(15),
+    }),
     reviews: z
         .array(
             z.object({
@@ -59,97 +59,106 @@ export const configSchema = z.object({
             })
         )
         .min(1),
-  workload: z.object({
-    preferredDailyMinutes: z.number().int().positive().default(180),
-    maxDailyMinutes: z.number().int().positive().nullable().default(null),
-    classLoadAdjustment: z.object({
-      enabled: z.boolean().default(true),
-      minutesReducedPerClassHour: z.number().nonnegative().default(30),
-      floorMinutes: z.number().nonnegative().default(30),
+    workload: z.object({
+        preferredDailyMinutes: z.number().int().positive().default(180),
+        maxDailyMinutes: z.number().int().positive().nullable().default(null),
+        classLoadAdjustment: z.object({
+            enabled: z.boolean().default(true),
+            minutesReducedPerClassHour: z.number().nonnegative().default(30),
+            floorMinutes: z.number().nonnegative().default(30),
+        }),
+        compactionBonusDays: z.number().nonnegative().default(1),
     }),
-    compactionBonusDays: z.number().nonnegative().default(1),
-  }),
-  classWeighting: z
-    .object({
-      defaultWeight: z.number().positive().default(1),
-      rules: z
+    classWeighting: z
+        .object({
+            defaultWeight: z.number().positive().default(1),
+            /**
+             * When true (default -- preserves existing behavior), weighting
+             * rules are matched against "{summary} {location}" combined. Set to
+             * false to match the title/summary only, so a room name that
+             * happens to contain a rule's pattern (e.g. a room literally named
+             * "... TP informatique") can't cause a non-TP class to be weighted
+             * as if it were one.
+             */
+            matchLocation: z.boolean().default(true),
+            rules: z
+                .array(
+                    z.object({
+                        pattern: z.string().min(1),
+                        weight: z.number().nonnegative(),
+                    })
+                )
+                .default([]),
+        })
+        .default({ defaultWeight: 1, matchLocation: true, rules: [] }),
+    classTypeReviews: z
+        .object({
+            enabled: z.boolean().default(false),
+            // Regex (case-insensitive) with a capture group for CM/TD/TP,
+            // matched against the class title. Defaults to a parenthesized tag
+            // like "(TD)"/"(TP)"/"(CM)".
+            pattern: z.string().default("\\((CM|TD|TP)\\)"),
+            // Review names (must match reviews[].name) generated for a
+            // CM-tagged (or untagged) class. null = every configured review.
+            cmReviewNames: z.array(z.string()).nullable().default(null),
+            // Review names generated for a TD-tagged class.
+            tdReviewNames: z.array(z.string()).default(["near"]),
+            // Review names generated once per completed (or leftover) pair of
+            // same-subject TP-tagged classes.
+            tpPairReviewNames: z.array(z.string()).default(["near"]),
+        })
+        .default({
+            enabled: false,
+            pattern: "\\((CM|TD|TP)\\)",
+            cmReviewNames: null,
+            tdReviewNames: ["near"],
+            tpPairReviewNames: ["near"],
+        }),
+    assessments: z.object({
+        file: z.string().min(1),
+        protectedTypes: z.array(z.string()).default([]),
+    }),
+    blockedPeriods: z
         .array(
-          z.object({
-            pattern: z.string().min(1),
-            weight: z.number().nonnegative(),
-          })
+            z.object({
+                startUtc: z.string().min(1),
+                endUtc: z.string().min(1),
+                visible: z.boolean().default(true),
+                reason: z.string().min(1),
+            })
         )
         .default([]),
-    })
-    .default({ defaultWeight: 1, rules: [] }),
-  classTypeReviews: z
-    .object({
-      enabled: z.boolean().default(false),
-      // Regex (case-insensitive) with a capture group for CM/TD/TP,
-      // matched against the class title. Defaults to a parenthesized tag
-      // like "(TD)"/"(TP)"/"(CM)".
-      pattern: z.string().default("\\((CM|TD|TP)\\)"),
-      // Review names (must match reviews[].name) generated for a
-      // CM-tagged (or untagged) class. null = every configured review.
-      cmReviewNames: z.array(z.string()).nullable().default(null),
-      // Review names generated for a TD-tagged class.
-      tdReviewNames: z.array(z.string()).default(["near"]),
-      // Review names generated once per completed (or leftover) pair of
-      // same-subject TP-tagged classes.
-      tpPairReviewNames: z.array(z.string()).default(["near"]),
-    })
-    .default({
-      enabled: false,
-      pattern: "\\((CM|TD|TP)\\)",
-      cmReviewNames: null,
-      tdReviewNames: ["near"],
-      tpPairReviewNames: ["near"],
+    recurringBlockedPeriods: z
+        .array(
+            z.object({
+                weekday: weekdayEnum,
+                start: timeString,
+                end: timeString,
+                reason: z.string().min(1),
+                visible: z.boolean().default(true),
+                // Scheduling-only margin padded onto each side of this block (see
+                // RecurringBlockedPeriod in types.ts). Never shown on the calendar.
+                bufferMinutes: z.number().int().nonnegative().default(0),
+            })
+        )
+        .default([]),
+    examProtection: z.object({
+        scope: z.literal("all-subjects").default("all-subjects"),
+        blackoutDays: z.number().int().nonnegative().default(7),
+        pullForwardMaxDays: z.number().int().nonnegative().default(6),
+        approachPenaltyDays: z.number().int().nonnegative().default(5),
+        approachPenaltyWeight: z.number().nonnegative().default(2),
     }),
-  assessments: z.object({
-    file: z.string().min(1),
-    protectedTypes: z.array(z.string()).default([]),
-  }),
-  blockedPeriods: z
-    .array(
-      z.object({
-        startUtc: z.string().min(1),
-        endUtc: z.string().min(1),
-        visible: z.boolean().default(true),
-        reason: z.string().min(1),
-      })
-    )
-    .default([]),
-  recurringBlockedPeriods: z
-    .array(
-      z.object({
-        weekday: weekdayEnum,
-        start: timeString,
-        end: timeString,
-        reason: z.string().min(1),
-        visible: z.boolean().default(true),
-        // Scheduling-only margin padded onto each side of this block (see
-        // RecurringBlockedPeriod in types.ts). Never shown on the calendar.
-        bufferMinutes: z.number().int().nonnegative().default(0),
-      })
-    )
-    .default([]),
-  examProtection: z.object({
-    scope: z.literal("all-subjects").default("all-subjects"),
-    blackoutDays: z.number().int().nonnegative().default(7),
-    pullForwardMaxDays: z.number().int().nonnegative().default(6),
-    approachPenaltyDays: z.number().int().nonnegative().default(5),
-    approachPenaltyWeight: z.number().nonnegative().default(2),
-  }),
-  horizon: z.object({
-    lookaheadDays: z.number().int().positive().default(60),
-    lookbackDays: z.number().int().nonnegative().default(14),
-  }),
-  regeneration: z.object({
-    cronTime: timeString.default("05:00"),
-    cronTimezone: z.string().default("Europe/Paris"),
-  }),
+    horizon: z.object({
+        lookaheadDays: z.number().int().positive().default(60),
+        lookbackDays: z.number().int().nonnegative().default(14),
+    }),
+    regeneration: z.object({
+        cronTime: timeString.default("05:00"),
+        cronTimezone: z.string().default("Europe/Paris"),
+    }),
 }).refine((c) => c.hyperplanning?.enabled || !!c.sourceFeed.url || !!c.sourceFeed.file, {
-  message: "configure Hyperplanning or at least one ICS source",
+    message: "configure Hyperplanning or at least one ICS source",
 });
 
 export type ConfigInput = z.infer<typeof configSchema>;

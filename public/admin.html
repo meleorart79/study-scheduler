@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>study-scheduler admin</title>
+    <style>
+        :root {
+            --bg: #0f1115;
+            --panel: #161920;
+            --border: #2a2e38;
+            --text: #e6e8ec;
+            --muted: #8b93a3;
+            --accent: #5b8dee;
+            --accent-dim: #2b3a5e;
+            --good: #4caf7d;
+            --warn: #e0a63a;
+            --bad: #e0605a;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 14px;
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border);
+            background: var(--panel);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            flex-wrap: wrap;
+        }
+
+            header h1 {
+                font-size: 16px;
+                margin: 0;
+                font-weight: 600;
+            }
+
+            header .spacer {
+                flex: 1;
+            }
+
+            header input[type=password], header input[type=text] {
+                background: var(--bg);
+                border: 1px solid var(--border);
+                color: var(--text);
+                padding: 6px 10px;
+                border-radius: 6px;
+                width: 220px;
+            }
+
+        button {
+            background: var(--accent-dim);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+            button:hover {
+                border-color: var(--accent);
+            }
+
+            button.primary {
+                background: var(--accent);
+                border-color: var(--accent);
+                color: #fff;
+            }
+
+            button.danger {
+                background: #3a2020;
+                border-color: #5a3030;
+                color: #f0a;
+                color: var(--bad);
+            }
+
+            button.small {
+                padding: 3px 8px;
+                font-size: 12px;
+            }
+
+        nav.tabs {
+            display: flex;
+            gap: 4px;
+            padding: 0 20px;
+            background: var(--panel);
+            border-bottom: 1px solid var(--border);
+        }
+
+            nav.tabs button {
+                background: transparent;
+                border: none;
+                border-bottom: 2px solid transparent;
+                border-radius: 0;
+                padding: 10px 14px;
+                color: var(--muted);
+            }
+
+                nav.tabs button.active {
+                    color: var(--text);
+                    border-bottom-color: var(--accent);
+                }
+
+        main {
+            padding: 20px;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .tabpanel {
+            display: none;
+        }
+
+            .tabpanel.active {
+                display: block;
+            }
+
+        section.card {
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px 18px;
+            margin-bottom: 16px;
+        }
+
+            section.card h2 {
+                font-size: 14px;
+                margin: 0 0 4px;
+            }
+
+            section.card p.hint {
+                color: var(--muted);
+                margin: 0 0 12px;
+                font-size: 12.5px;
+            }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+            table th, table td {
+                text-align: left;
+                padding: 6px 6px;
+                border-bottom: 1px solid var(--border);
+                font-size: 13px;
+                vertical-align: middle;
+            }
+
+            table th {
+                color: var(--muted);
+                font-weight: 500;
+                font-size: 12px;
+            }
+
+            table input, table select {
+                background: var(--bg);
+                border: 1px solid var(--border);
+                color: var(--text);
+                padding: 4px 6px;
+                border-radius: 5px;
+                width: 100%;
+                font-size: 13px;
+            }
+
+                table input[type=checkbox] {
+                    width: auto;
+                }
+
+        .row-actions {
+            white-space: nowrap;
+        }
+
+        .grid2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px;
+        }
+
+        .grid3 {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 14px;
+        }
+
+        .field {
+            margin-bottom: 10px;
+        }
+
+            .field label {
+                display: block;
+                color: var(--muted);
+                font-size: 12px;
+                margin-bottom: 3px;
+            }
+
+            .field input {
+                background: var(--bg);
+                border: 1px solid var(--border);
+                color: var(--text);
+                padding: 6px 8px;
+                border-radius: 6px;
+                width: 100%;
+            }
+
+        textarea#rawJson {
+            width: 100%;
+            min-height: 320px;
+            background: var(--bg);
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px;
+            font-family: ui-monospace, Menlo, monospace;
+            font-size: 12.5px;
+        }
+
+        .status {
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin-bottom: 14px;
+            font-size: 13px;
+            white-space: pre-wrap;
+        }
+
+            .status.ok {
+                background: #14261c;
+                color: var(--good);
+                border: 1px solid #1f3d2c;
+            }
+
+            .status.err {
+                background: #2a1717;
+                color: var(--bad);
+                border: 1px solid #3d1f1f;
+            }
+
+        .badge {
+            padding: 2px 7px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+            .badge.SCHEDULED, .badge.SUCCESS {
+                background: #14261c;
+                color: var(--good);
+            }
+
+            .badge.LOCKED {
+                background: #1f2438;
+                color: var(--accent);
+            }
+
+            .badge.NEEDS_ATTENTION, .badge.FAILED {
+                background: #2a1717;
+                color: var(--bad);
+            }
+
+            .badge.SKIPPED, .badge.CANCELLED, .badge.NO_OP {
+                background: #26251a;
+                color: var(--warn);
+            }
+
+            .badge.RUNNING {
+                background: #1f2438;
+                color: var(--accent);
+            }
+
+        .muted {
+            color: var(--muted);
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 12px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+            .toolbar .spacer {
+                flex: 1;
+            }
+
+        details > summary {
+            cursor: pointer;
+            color: var(--muted);
+            font-size: 12.5px;
+            margin-top: 4px;
+        }
+
+        code {
+            background: var(--bg);
+            padding: 1px 5px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>study-scheduler</h1>
+        <a href="/plan" style="color:var(--accent);text-decoration:none;font-size:13px;">Planning →</a>
+        <span id="domainLabel" class="muted"></span>
+        <div class="spacer"></div>
+        <input id="tokenInput" type="password" placeholder="STUDY_ADMIN_TOKEN">
+        <button id="saveTokenBtn">Connect</button>
+    </header>
+
+    <nav class="tabs">
+        <button data-tab="config" class="active">Config</button>
+        <button data-tab="sessions">Sessions</button>
+        <button data-tab="runs">Runs</button>
+    </nav>
+
+    <main>
+
+        <div id="status"></div>
+
+        <!-- ===================== CONFIG TAB ===================== -->
+        <div class="tabpanel active" id="tab-config">
+            <div id="diagBanner" class="status" style="display:none;"></div>
+            <div class="toolbar">
+                <button id="reloadConfigBtn">Reload from server</button>
+                <button id="resetConfigBtn" class="danger">Reset to file config</button>
+                <div class="spacer"></div>
+                <button id="saveConfigBtn" class="primary">Save all changes</button>
+            </div>
+
+            <section class="card">
+                <h2>Recurring commitments (e.g. basketball)</h2>
+                <p class="hint">Weekly blocks. "Visible" also renders it as its own event in study.ics. Buffer minutes pads the scheduling block only -- the calendar event still shows the real time.</p>
+                <table id="recurringTable">
+                    <thead><tr><th>Weekday</th><th>Start</th><th>End</th><th>Reason</th><th>Visible</th><th>Buffer (min)</th><th></th></tr></thead>
+                    <tbody></tbody>
+                </table>
+                <button class="small" id="addRecurringBtn">+ Add commitment</button>
+            </section>
+
+            <section class="card">
+                <h2>Study windows</h2>
+                <p class="hint">Time-of-day windows study sessions can be placed in, per day type.</p>
+                <div class="grid2">
+                    <div>
+                        <h3 style="font-size:12.5px;color:var(--muted);margin:0 0 6px;">Weekdays</h3>
+                        <table id="weekdayWindowsTable"><tbody></tbody></table>
+                        <button class="small" id="addWeekdayWindowBtn">+ Add window</button>
+                    </div>
+                    <div>
+                        <h3 style="font-size:12.5px;color:var(--muted);margin:0 0 6px;">Weekends</h3>
+                        <table id="weekendWindowsTable"><tbody></tbody></table>
+                        <button class="small" id="addWeekendWindowBtn">+ Add window</button>
+                    </div>
+                </div>
+            </section>
+
+            <section class="card">
+                <h2>Workload</h2>
+                <div class="grid3">
+                    <div class="field"><label>Preferred daily minutes</label><input id="w_preferred" type="number" min="1"></div>
+                    <div class="field"><label>Max daily minutes (blank = no cap)</label><input id="w_max" type="number" min="1"></div>
+                    <div class="field"><label>Compaction bonus (days)</label><input id="w_compaction" type="number" min="0"></div>
+                    <div class="field"><label><input id="w_claEnabled" type="checkbox" style="width:auto"> Class-load adjustment enabled</label></div>
+                    <div class="field"><label>Minutes reduced / class hour</label><input id="w_claReduce" type="number" min="0"></div>
+                    <div class="field"><label>Floor minutes</label><input id="w_claFloor" type="number" min="0"></div>
+                </div>
+            </section>
+
+            <section class="card">
+                <h2>Reviews</h2>
+                <p class="hint"><code>anySlot</code>: ignore target/flexibility and take the first free slot anywhere in the horizon.</p>
+                <table id="reviewsTable">
+                    <thead><tr><th>Name</th><th>Target offset (days)</th><th>Flexibility (days)</th><th>Any slot</th><th></th></tr></thead>
+                    <tbody></tbody>
+                </table>
+                <button class="small" id="addReviewBtn">+ Add review</button>
+            </section>
+
+            <section class="card">
+                <h2>Exam protection</h2>
+                <div class="grid3">
+                    <div class="field"><label>Blackout days before exam</label><input id="ep_blackout" type="number" min="0"></div>
+                    <div class="field"><label>Pull-forward max days</label><input id="ep_pullforward" type="number" min="0"></div>
+                    <div class="field"><label>Approach penalty days</label><input id="ep_penaltyDays" type="number" min="0"></div>
+                    <div class="field"><label>Approach penalty weight</label><input id="ep_penaltyWeight" type="number" min="0" step="0.1"></div>
+                </div>
+            </section>
+
+            <section class="card">
+                <h2>Regeneration schedule &amp; horizon</h2>
+                <div class="grid3">
+                    <div class="field"><label>Daily cron time (HH:mm)</label><input id="r_cronTime" type="time"></div>
+                    <div class="field"><label>Cron timezone</label><input id="r_cronTz" type="text"></div>
+                    <div class="field"></div>
+                    <div class="field"><label>Lookahead days</label><input id="h_lookahead" type="number" min="1"></div>
+                    <div class="field"><label>Lookback days</label><input id="h_lookback" type="number" min="0"></div>
+                </div>
+            </section>
+
+            <section class="card">
+                <h2>Static blocked periods</h2>
+                <p class="hint">One-off blocks (e.g. travel). Uses your browser's local time zone; saved as UTC.</p>
+                <table id="blockedTable">
+                    <thead><tr><th>Start</th><th>End</th><th>Reason</th><th>Visible</th><th></th></tr></thead>
+                    <tbody></tbody>
+                </table>
+                <button class="small" id="addBlockedBtn">+ Add blocked period</button>
+            </section>
+
+            <section class="card">
+                <h2>Advanced: raw JSON</h2>
+                <p class="hint">Everything above reads/writes this same object -- use this for fields with no dedicated editor yet (classWeighting, classTypeReviews, sourceFeed, hyperplanning). "Apply" re-renders the forms above from what you paste; "Save all changes" (top) always sends whatever is currently in memory, guided edits included.</p>
+                <div class="toolbar">
+                    <button id="syncJsonBtn">Sync JSON from form</button>
+                    <button id="applyJsonBtn">Apply JSON to form</button>
+                </div>
+                <textarea id="rawJson" spellcheck="false"></textarea>
+            </section>
+        </div>
+
+        <!-- ===================== SESSIONS TAB ===================== -->
+        <div class="tabpanel" id="tab-sessions">
+            <div class="toolbar">
+                <button id="reloadSessionsBtn">Reload</button>
+                <button id="regenerateBtn" class="primary">Regenerate now</button>
+                <div class="spacer"></div>
+            </div>
+            <section class="card">
+                <table id="sessionsTable">
+                    <thead><tr><th>Class</th><th>Review</th><th>Status</th><th>Start</th><th>End</th><th>Actions</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </section>
+        </div>
+
+        <!-- ===================== RUNS TAB ===================== -->
+        <div class="tabpanel" id="tab-runs">
+            <div class="toolbar">
+                <button id="reloadRunsBtn">Reload</button>
+                <div class="spacer"></div>
+            </div>
+            <section class="card">
+                <table id="runsTable">
+                    <thead><tr><th>Started</th><th>Trigger</th><th>Status</th><th>Scheduled</th><th>Needs attention</th><th>Cancelled</th><th>Error</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </section>
+        </div>
+
+    </main>
+
+    <script>
+// @ts-nocheck
+(function () {
+  const WEEKDAYS = ["monday","tuesday","wednesday","thursday","friday","saturday","sunday"];
+  let cfg = null;
+
+  function token() { return localStorage.getItem("sa_token") || ""; }
+  function setToken(t) { localStorage.setItem("sa_token", t); }
+  function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+  function showStatus(msg, ok) {
+    const el = document.getElementById("status");
+    el.className = "status " + (ok ? "ok" : "err");
+    el.textContent = msg;
+    el.style.display = "block";
+    if (ok) setTimeout(() => { if (el.textContent === msg) el.style.display = "none"; }, 4000);
+  }
+
+  async function api(path, opts) {
+    opts = opts || {};
+    const headers = Object.assign({ "Authorization": "Bearer " + token() }, opts.headers || {});
+    if (opts.body) headers["Content-Type"] = "application/json";
+    const res = await fetch(path, Object.assign({}, opts, { headers }));
+    let data = null;
+    try { data = await res.json(); } catch (e) { /* no body */ }
+    if (!res.ok) {
+      let msg = (data && (data.error || JSON.stringify(data))) || (res.status + " " + res.statusText);
+      if (data && Array.isArray(data.issues)) {
+        msg += "\n" + data.issues.map(i => "  - " + (i.path || []).join(".") + ": " + i.message).join("\n");
+      }
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  // ---------- tabs ----------
+  document.querySelectorAll("nav.tabs button").forEach(btn => {
+    btn.addEventListener("click", () => {
+      document.querySelectorAll("nav.tabs button").forEach(b => b.classList.remove("active"));
+      document.querySelectorAll(".tabpanel").forEach(p => p.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById("tab-" + btn.dataset.tab).classList.add("active");
+      if (btn.dataset.tab === "sessions") loadSessions();
+      if (btn.dataset.tab === "runs") loadRuns();
+    });
+  });
+
+  document.getElementById("saveTokenBtn").addEventListener("click", () => {
+    setToken(document.getElementById("tokenInput").value.trim());
+    loadConfig();
+  });
+
+  // ---------- config: load / save ----------
+    async function loadConfig() {
+        try {
+            cfg = await api("/admin/config");
+            document.getElementById("domainLabel").textContent = "";
+            renderAll();
+            showStatus("Config loaded.", true);
+        } catch (e) {
+            showStatus("Failed to load config: " + e.message, false);
+        }
+        loadDiagnostics();
+    }
+
+    async function loadDiagnostics() {
+        const el = document.getElementById("diagBanner");
+        try {
+            const d = await api("/admin/diagnostics");
+            const lines = [];
+            if (d.hyperplanning.enabled) {
+                lines.push("Hyperplanning: enabled (" + d.hyperplanning.url + ")");
+            } else {
+                lines.push("Hyperplanning: disabled");
+            }
+            if (d.sourceFeed.url) {
+                lines.push("sourceFeed.url: " + d.sourceFeed.url);
+            } else if (d.sourceFeed.file) {
+                lines.push(
+                    "sourceFeed.file: " + d.sourceFeed.file +
+                    (d.sourceFeed.fileExists ? "  (found on disk)" : "  -- FILE NOT FOUND on the server")
+                );
+            } else {
+                lines.push("sourceFeed: neither url nor file is set");
+            }
+            lines.push(d.hasLastKnownGood ? "Last-known-good snapshot: present" : "Last-known-good snapshot: none yet");
+            const problem = (!d.hyperplanning.enabled && !d.sourceFeed.url && (!d.sourceFeed.file || !d.sourceFeed.fileExists) && !d.hasLastKnownGood);
+            el.className = "status " + (problem ? "err" : "ok");
+            el.textContent = lines.join("  |  ");
+            el.style.display = "block";
+        } catch (e) {
+            el.style.display = "none";
+        }
+    }
+
+    async function saveConfig() {
+        // The raw-JSON textarea is always kept in sync with `cfg` after every
+        // guided-form edit (syncCfgToJson), so it is always the authoritative,
+        // up-to-date representation regardless of whether the last edit came
+        // from a form field or from typing directly into the box -- parsing
+        // it here (instead of sending the possibly-stale `cfg` object) is
+        // what makes hand-edited JSON actually take effect on save.
+        let toSend;
+        try {
+            toSend = JSON.parse(document.getElementById("rawJson").value);
+        } catch (e) {
+            showStatus("Raw JSON is invalid, nothing was saved: " + e.message, false);
+            return;
+        }
+        try {
+            cfg = await api("/admin/config", { method: "PUT", body: JSON.stringify(toSend) });
+            renderAll();
+            showStatus("Saved. A regeneration was triggered.", true);
+        } catch (e) {
+            showStatus("Save failed:\n" + e.message, false);
+        }
+    }
+
+    async function resetConfig() {
+        if (!confirm("Discard the saved runtime config and revert to config/default.yaml? This cannot be undone.")) return;
+        try {
+            cfg = await api("/admin/config/reset", { method: "POST" });
+            renderAll();
+            showStatus("Reverted to file config. A regeneration was triggered.", true);
+        } catch (e) {
+            showStatus("Reset failed: " + e.message, false);
+        }
+    }
+
+    document.getElementById("reloadConfigBtn").addEventListener("click", loadConfig);
+    document.getElementById("saveConfigBtn").addEventListener("click", saveConfig);
+    document.getElementById("resetConfigBtn").addEventListener("click", resetConfig);
+
+  function renderAll() {
+    if (!cfg) return;
+    renderRecurring();
+    renderWindows("weekdayWindowsTable", cfg.studyWindows.weekdays);
+    renderWindows("weekendWindowsTable", cfg.studyWindows.weekends);
+    renderWorkload();
+    renderReviews();
+    renderExamProtection();
+    renderRegenAndHorizon();
+    renderBlockedPeriods();
+    syncCfgToJson();
+  }
+
+  // ---------- recurring commitments ----------
+  function renderRecurring() {
+    const tbody = document.querySelector("#recurringTable tbody");
+    tbody.innerHTML = "";
+    (cfg.recurringBlockedPeriods || []).forEach((p, i) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><select data-i="${i}" data-f="weekday">${WEEKDAYS.map(w => `<option value="${w}" ${p.weekday===w?"selected":""}>${w}</option>`).join("")}</select></td>
+        <td><input data-i="${i}" data-f="start" type="time" value="${esc(p.start)}"></td>
+        <td><input data-i="${i}" data-f="end" type="time" value="${esc(p.end)}"></td>
+        <td><input data-i="${i}" data-f="reason" type="text" value="${esc(p.reason)}"></td>
+        <td style="text-align:center"><input data-i="${i}" data-f="visible" type="checkbox" ${p.visible !== false ? "checked" : ""}></td>
+        <td><input data-i="${i}" data-f="bufferMinutes" type="number" min="0" value="${p.bufferMinutes ?? 0}"></td>
+        <td class="row-actions"><button class="small danger" data-remove="${i}">Remove</button></td>`;
+      tbody.appendChild(tr);
+    });
+    tbody.querySelectorAll("select,input").forEach(el => el.addEventListener("change", () => {
+      const i = +el.dataset.i, f = el.dataset.f;
+      const p = cfg.recurringBlockedPeriods[i];
+      if (el.type === "checkbox") p[f] = el.checked;
+      else if (el.type === "number") p[f] = el.value === "" ? 0 : Number(el.value);
+      else p[f] = el.value;
+      syncCfgToJson();
+    }));
+    tbody.querySelectorAll("[data-remove]").forEach(btn => btn.addEventListener("click", () => {
+      cfg.recurringBlockedPeriods.splice(+btn.dataset.remove, 1);
+      renderRecurring(); syncCfgToJson();
+    }));
+  }
+  document.getElementById("addRecurringBtn").addEventListener("click", () => {
+    cfg.recurringBlockedPeriods = cfg.recurringBlockedPeriods || [];
+    cfg.recurringBlockedPeriods.push({ weekday: "monday", start: "12:00", end: "13:00", reason: "New commitment", visible: true, bufferMinutes: 0 });
+    renderRecurring(); syncCfgToJson();
+  });
+
+  // ---------- study windows ----------
+  function renderWindows(tableId, list) {
+    const tbody = document.querySelector("#" + tableId + " tbody");
+    tbody.innerHTML = "";
+    list.forEach((w, i) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><input data-i="${i}" data-f="start" type="time" value="${esc(w.start)}"></td>
+        <td><input data-i="${i}" data-f="end" type="time" value="${esc(w.end)}"></td>
+        <td class="row-actions"><button class="small danger" data-remove="${i}">Remove</button></td>`;
+      tbody.appendChild(tr);
+    });
+    tbody.querySelectorAll("input").forEach(el => el.addEventListener("change", () => {
+      list[+el.dataset.i][el.dataset.f] = el.value;
+      syncCfgToJson();
+    }));
+    tbody.querySelectorAll("[data-remove]").forEach(btn => btn.addEventListener("click", () => {
+      list.splice(+btn.dataset.remove, 1);
+      renderWindows(tableId, list); syncCfgToJson();
+    }));
+  }
+  document.getElementById("addWeekdayWindowBtn").addEventListener("click", () => {
+    cfg.studyWindows.weekdays.push({ start: "09:00", end: "17:00" });
+    renderWindows("weekdayWindowsTable", cfg.studyWindows.weekdays); syncCfgToJson();
+  });
+  document.getElementById("addWeekendWindowBtn").addEventListener("click", () => {
+    cfg.studyWindows.weekends.push({ start: "10:00", end: "14:00" });
+    renderWindows("weekendWindowsTable", cfg.studyWindows.weekends); syncCfgToJson();
+  });
+
+  // ---------- workload ----------
+  function renderWorkload() {
+    const w = cfg.workload;
+    document.getElementById("w_preferred").value = w.preferredDailyMinutes;
+    document.getElementById("w_max").value = w.maxDailyMinutes ?? "";
+    document.getElementById("w_compaction").value = w.compactionBonusDays;
+    document.getElementById("w_claEnabled").checked = w.classLoadAdjustment.enabled;
+    document.getElementById("w_claReduce").value = w.classLoadAdjustment.minutesReducedPerClassHour;
+    document.getElementById("w_claFloor").value = w.classLoadAdjustment.floorMinutes;
+  }
+  ["w_preferred","w_max","w_compaction","w_claEnabled","w_claReduce","w_claFloor"].forEach(id => {
+    document.getElementById(id).addEventListener("change", () => {
+      const w = cfg.workload;
+      w.preferredDailyMinutes = Number(document.getElementById("w_preferred").value) || w.preferredDailyMinutes;
+      const maxVal = document.getElementById("w_max").value;
+      w.maxDailyMinutes = maxVal === "" ? null : Number(maxVal);
+      w.compactionBonusDays = Number(document.getElementById("w_compaction").value) || 0;
+      w.classLoadAdjustment.enabled = document.getElementById("w_claEnabled").checked;
+      w.classLoadAdjustment.minutesReducedPerClassHour = Number(document.getElementById("w_claReduce").value) || 0;
+      w.classLoadAdjustment.floorMinutes = Number(document.getElementById("w_claFloor").value) || 0;
+      syncCfgToJson();
+    });
+  });
+
+  // ---------- reviews ----------
+  function renderReviews() {
+    const tbody = document.querySelector("#reviewsTable tbody");
+    tbody.innerHTML = "";
+    cfg.reviews.forEach((r, i) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><input data-i="${i}" data-f="name" type="text" value="${esc(r.name)}"></td>
+        <td><input data-i="${i}" data-f="targetOffsetDays" type="number" value="${r.targetOffsetDays}"></td>
+        <td><input data-i="${i}" data-f="flexibilityDays" type="number" min="0" value="${r.flexibilityDays}"></td>
+        <td style="text-align:center"><input data-i="${i}" data-f="anySlot" type="checkbox" ${r.anySlot ? "checked" : ""}></td>
+        <td class="row-actions"><button class="small danger" data-remove="${i}">Remove</button></td>`;
+      tbody.appendChild(tr);
+    });
+    tbody.querySelectorAll("input").forEach(el => el.addEventListener("change", () => {
+      const r = cfg.reviews[+el.dataset.i], f = el.dataset.f;
+      if (el.type === "checkbox") r[f] = el.checked;
+      else if (el.type === "number") r[f] = Number(el.value) || 0;
+      else r[f] = el.value;
+      syncCfgToJson();
+    }));
+    tbody.querySelectorAll("[data-remove]").forEach(btn => btn.addEventListener("click", () => {
+      cfg.reviews.splice(+btn.dataset.remove, 1);
+      renderReviews(); syncCfgToJson();
+    }));
+  }
+  document.getElementById("addReviewBtn").addEventListener("click", () => {
+    cfg.reviews.push({ name: "custom", targetOffsetDays: 1, flexibilityDays: 1, anySlot: false });
+    renderReviews(); syncCfgToJson();
+  });
+
+  // ---------- exam protection ----------
+  function renderExamProtection() {
+    const e = cfg.examProtection;
+    document.getElementById("ep_blackout").value = e.blackoutDays;
+    document.getElementById("ep_pullforward").value = e.pullForwardMaxDays;
+    document.getElementById("ep_penaltyDays").value = e.approachPenaltyDays;
+    document.getElementById("ep_penaltyWeight").value = e.approachPenaltyWeight;
+  }
+  ["ep_blackout","ep_pullforward","ep_penaltyDays","ep_penaltyWeight"].forEach(id => {
+    document.getElementById(id).addEventListener("change", () => {
+      const e = cfg.examProtection;
+      e.blackoutDays = Number(document.getElementById("ep_blackout").value) || 0;
+      e.pullForwardMaxDays = Number(document.getElementById("ep_pullforward").value) || 0;
+      e.approachPenaltyDays = Number(document.getElementById("ep_penaltyDays").value) || 0;
+      e.approachPenaltyWeight = Number(document.getElementById("ep_penaltyWeight").value) || 0;
+      syncCfgToJson();
+    });
+  });
+
+  // ---------- regeneration + horizon ----------
+  function renderRegenAndHorizon() {
+    document.getElementById("r_cronTime").value = cfg.regeneration.cronTime;
+    document.getElementById("r_cronTz").value = cfg.regeneration.cronTimezone;
+    document.getElementById("h_lookahead").value = cfg.horizon.lookaheadDays;
+    document.getElementById("h_lookback").value = cfg.horizon.lookbackDays;
+  }
+  ["r_cronTime","r_cronTz","h_lookahead","h_lookback"].forEach(id => {
+    document.getElementById(id).addEventListener("change", () => {
+      cfg.regeneration.cronTime = document.getElementById("r_cronTime").value || cfg.regeneration.cronTime;
+      cfg.regeneration.cronTimezone = document.getElementById("r_cronTz").value || cfg.regeneration.cronTimezone;
+      cfg.horizon.lookaheadDays = Number(document.getElementById("h_lookahead").value) || cfg.horizon.lookaheadDays;
+      cfg.horizon.lookbackDays = Number(document.getElementById("h_lookback").value) || 0;
+      syncCfgToJson();
+    });
+  });
+
+  // ---------- static blocked periods ----------
+  function toLocalInputValue(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return "";
+    const pad = n => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  function renderBlockedPeriods() {
+    const tbody = document.querySelector("#blockedTable tbody");
+    tbody.innerHTML = "";
+    (cfg.blockedPeriods || []).forEach((p, i) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><input data-i="${i}" data-f="startUtc" type="datetime-local" value="${toLocalInputValue(p.startUtc)}"></td>
+        <td><input data-i="${i}" data-f="endUtc" type="datetime-local" value="${toLocalInputValue(p.endUtc)}"></td>
+        <td><input data-i="${i}" data-f="reason" type="text" value="${esc(p.reason)}"></td>
+        <td style="text-align:center"><input data-i="${i}" data-f="visible" type="checkbox" ${p.visible !== false ? "checked" : ""}></td>
+        <td class="row-actions"><button class="small danger" data-remove="${i}">Remove</button></td>`;
+      tbody.appendChild(tr);
+    });
+    tbody.querySelectorAll("input").forEach(el => el.addEventListener("change", () => {
+      const p = cfg.blockedPeriods[+el.dataset.i], f = el.dataset.f;
+      if (el.type === "checkbox") p[f] = el.checked;
+      else if (el.type === "datetime-local") p[f] = el.value ? new Date(el.value).toISOString() : p[f];
+      else p[f] = el.value;
+      syncCfgToJson();
+    }));
+    tbody.querySelectorAll("[data-remove]").forEach(btn => btn.addEventListener("click", () => {
+      cfg.blockedPeriods.splice(+btn.dataset.remove, 1);
+      renderBlockedPeriods(); syncCfgToJson();
+    }));
+  }
+  document.getElementById("addBlockedBtn").addEventListener("click", () => {
+    cfg.blockedPeriods = cfg.blockedPeriods || [];
+    const now = new Date().toISOString();
+    cfg.blockedPeriods.push({ startUtc: now, endUtc: now, reason: "New blocked period", visible: true });
+    renderBlockedPeriods(); syncCfgToJson();
+  });
+
+  // ---------- raw JSON sync ----------
+  function syncCfgToJson() {
+    document.getElementById("rawJson").value = JSON.stringify(cfg, null, 2);
+    }
+
+  document.getElementById("syncJsonBtn").addEventListener("click", syncCfgToJson);
+  document.getElementById("applyJsonBtn").addEventListener("click", () => {
+    try {
+      cfg = JSON.parse(document.getElementById("rawJson").value);
+      renderAll();
+      showStatus("Applied JSON to the form.", true);
+    } catch (e) {
+      showStatus("Invalid JSON: " + e.message, false);
+    }
+  });
+
+  // ---------- sessions ----------
+  async function loadSessions() {
+    try {
+      const sessions = await api("/admin/sessions");
+      renderSessions(sessions);
+    } catch (e) {
+      showStatus("Failed to load sessions: " + e.message, false);
+    }
+  }
+  function renderSessions(sessions) {
+    const tbody = document.querySelector("#sessionsTable tbody");
+    tbody.innerHTML = "";
+    sessions
+      .sort((a, b) => (a.startUtc || "9999") < (b.startUtc || "9999") ? -1 : 1)
+      .forEach(s => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${esc(s.sourceSummary)}</td>
+          <td>${esc(s.reviewName)}</td>
+          <td><span class="badge ${s.status}">${s.status}</span></td>
+          <td>${s.startUtc ? new Date(s.startUtc).toLocaleString() : "-"}</td>
+          <td>${s.endUtc ? new Date(s.endUtc).toLocaleString() : "-"}</td>
+          <td class="row-actions">
+            <button class="small" data-act="lock" data-id="${s.id}">Lock</button>
+            <button class="small" data-act="skip" data-id="${s.id}">Skip</button>
+            <button class="small" data-act="unlock" data-id="${s.id}">Unlock</button>
+            <button class="small" data-act="reschedule" data-id="${s.id}">Reschedule&hellip;</button>
+          </td>`;
+        tbody.appendChild(tr);
+      });
+    tbody.querySelectorAll("[data-act]").forEach(btn => btn.addEventListener("click", async () => {
+      const id = btn.dataset.id, act = btn.dataset.act;
+      try {
+        if (act === "reschedule") {
+          const start = prompt("New start (e.g. 2026-10-05T14:00)");
+          if (!start) return;
+          const end = prompt("New end (e.g. 2026-10-05T15:30)");
+          if (!end) return;
+          await api(`/admin/sessions/${id}/reschedule`, {
+            method: "POST",
+            body: JSON.stringify({ startUtc: new Date(start).toISOString(), endUtc: new Date(end).toISOString() }),
+          });
+        } else {
+          await api(`/admin/sessions/${id}/${act}`, { method: "POST" });
+        }
+        showStatus("Done.", true);
+        loadSessions();
+      } catch (e) {
+        showStatus("Action failed: " + e.message, false);
+      }
+    }));
+  }
+  document.getElementById("reloadSessionsBtn").addEventListener("click", loadSessions);
+  document.getElementById("regenerateBtn").addEventListener("click", async () => {
+    try {
+      const run = await api("/admin/regenerate", { method: "POST" });
+      showStatus("Regeneration " + run.status + ".", run.status !== "FAILED");
+      loadSessions();
+    } catch (e) {
+      showStatus("Regenerate failed: " + e.message, false);
+    }
+  });
+
+  // ---------- runs ----------
+  async function loadRuns() {
+    try {
+      const runs = await api("/admin/runs?limit=50");
+      const tbody = document.querySelector("#runsTable tbody");
+      tbody.innerHTML = "";
+      runs.forEach(r => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${new Date(r.startedAt).toLocaleString()}</td>
+          <td>${esc(r.trigger)}</td>
+          <td><span class="badge ${r.status}">${r.status}</span></td>
+          <td>${r.sessionsScheduled}</td>
+          <td>${r.sessionsNeedsAttention}</td>
+          <td>${r.sessionsCancelled}</td>
+          <td class="muted">${esc(r.error || "")}</td>`;
+        tbody.appendChild(tr);
+      });
+    } catch (e) {
+      showStatus("Failed to load runs: " + e.message, false);
+    }
+  }
+  document.getElementById("reloadRunsBtn").addEventListener("click", loadRuns);
+
+  // ---------- init ----------
+  document.getElementById("tokenInput").value = token();
+  if (token()) loadConfig();
+  else showStatus("Enter your STUDY_ADMIN_TOKEN above and click Connect.", false);
+})();
+    </script>
+</body>
+</html>

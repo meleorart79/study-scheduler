@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>study-scheduler — planning</title>
+    <style>
+        :root {
+            --bg: #0f1115;
+            --panel: #161920;
+            --border: #2a2e38;
+            --text: #e6e8ec;
+            --muted: #8b93a3;
+            --accent: #5b8dee;
+            --accent-dim: #2b3a5e;
+            --good: #4caf7d;
+            --warn: #e0a63a;
+            --bad: #e0605a;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            font-size: 14px;
+        }
+
+        header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border);
+            background: var(--panel);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            flex-wrap: wrap;
+        }
+
+            header h1 {
+                font-size: 16px;
+                margin: 0;
+                font-weight: 600;
+            }
+
+            header .spacer {
+                flex: 1;
+            }
+
+            header input[type=password] {
+                background: var(--bg);
+                border: 1px solid var(--border);
+                color: var(--text);
+                padding: 6px 10px;
+                border-radius: 6px;
+                width: 220px;
+            }
+
+        button {
+            background: var(--accent-dim);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+            button:hover {
+                border-color: var(--accent);
+            }
+
+            button.primary {
+                background: var(--accent);
+                border-color: var(--accent);
+                color: #fff;
+            }
+
+        main {
+            padding: 20px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .toolbar {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+        }
+
+            .toolbar label {
+                display: flex;
+                align-items: center;
+                gap: 5px;
+                color: var(--muted);
+                font-size: 13px;
+            }
+
+        .status {
+            padding: 8px 12px;
+            border-radius: 6px;
+            margin-bottom: 14px;
+            font-size: 13px;
+        }
+
+            .status.ok {
+                background: #14261c;
+                color: var(--good);
+                border: 1px solid #1f3d2c;
+            }
+
+            .status.err {
+                background: #2a1717;
+                color: var(--bad);
+                border: 1px solid #3d1f1f;
+            }
+
+        .day {
+            margin-bottom: 22px;
+        }
+
+            .day h2 {
+                font-size: 13px;
+                color: var(--muted);
+                text-transform: uppercase;
+                letter-spacing: 0.04em;
+                border-bottom: 1px solid var(--border);
+                padding-bottom: 6px;
+                margin: 0 0 8px;
+                display: flex;
+                justify-content: space-between;
+            }
+
+                .day h2 .today-tag {
+                    color: var(--accent);
+                }
+
+        .session {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 12px;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            margin-bottom: 6px;
+        }
+
+            .session .time {
+                font-variant-numeric: tabular-nums;
+                color: var(--muted);
+                width: 92px;
+                flex-shrink: 0;
+                font-size: 13px;
+            }
+
+            .session .title {
+                flex: 1;
+            }
+
+                .session .title .subject {
+                    font-weight: 500;
+                }
+
+                .session .title .review {
+                    color: var(--muted);
+                    font-size: 12.5px;
+                    margin-left: 6px;
+                }
+
+        .badge {
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+            .badge.SCHEDULED {
+                background: #14261c;
+                color: var(--good);
+            }
+
+            .badge.LOCKED {
+                background: #1f2438;
+                color: var(--accent);
+            }
+
+            .badge.NEEDS_ATTENTION {
+                background: #2a1717;
+                color: var(--bad);
+            }
+
+            .badge.SKIPPED, .badge.CANCELLED {
+                background: #26251a;
+                color: var(--warn);
+            }
+
+        .empty {
+            color: var(--muted);
+            text-align: center;
+            padding: 40px 0;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <a href="/" style="color:var(--accent);text-decoration:none;font-size:13px;">← Admin</a>
+        <h1>Planning</h1>
+        <div class="spacer"></div>
+        <label style="color:var(--muted);font-size:13px;"><input type="checkbox" id="fScheduled" checked> Scheduled/Locked</label>
+        <label style="color:var(--muted);font-size:13px;"><input type="checkbox" id="fAttention" checked> Needs attention</label>
+        <label style="color:var(--muted);font-size:13px;"><input type="checkbox" id="fOther"> Skipped/Cancelled</label>
+        <input id="tokenInput" type="password" placeholder="STUDY_ADMIN_TOKEN">
+        <button id="saveTokenBtn">Connect</button>
+        <button id="reloadBtn">Reload</button>
+    </header>
+
+    <main>
+        <div id="status"></div>
+        <div class="toolbar">
+            <label><input type="radio" name="range" value="all" checked> All upcoming</label>
+            <label><input type="radio" name="range" value="7"> Next 7 days</label>
+            <label><input type="radio" name="range" value="30"> Next 30 days</label>
+            <label><input type="checkbox" id="fPast"> Include past</label>
+        </div>
+        <div id="agenda"></div>
+    </main>
+
+    <script>
+// @ts-nocheck
+(function () {
+  function token() { return localStorage.getItem("sa_token") || ""; }
+  function setToken(t) { localStorage.setItem("sa_token", t); }
+  function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+  function showStatus(msg, ok) {
+    const el = document.getElementById("status");
+    el.className = "status " + (ok ? "ok" : "err");
+    el.textContent = msg;
+    el.style.display = "block";
+    if (ok) setTimeout(() => { if (el.textContent === msg) el.style.display = "none"; }, 3000);
+  }
+
+  async function api(path) {
+    const res = await fetch(path, { headers: { "Authorization": "Bearer " + token() } });
+    let data = null;
+    try { data = await res.json(); } catch (e) {}
+    if (!res.ok) throw new Error((data && data.error) || (res.status + " " + res.statusText));
+    return data;
+  }
+
+  document.getElementById("saveTokenBtn").addEventListener("click", () => {
+    setToken(document.getElementById("tokenInput").value.trim());
+    load();
+  });
+  document.getElementById("reloadBtn").addEventListener("click", load);
+  ["fScheduled","fAttention","fOther","fPast"].forEach(id =>
+    document.getElementById(id).addEventListener("change", render)
+  );
+  document.querySelectorAll('input[name=range]').forEach(r => r.addEventListener("change", render));
+
+  let allSessions = [];
+
+  async function load() {
+    try {
+      allSessions = await api("/admin/sessions");
+      render();
+      showStatus("Loaded " + allSessions.length + " sessions.", true);
+    } catch (e) {
+      showStatus("Failed to load: " + e.message, false);
+    }
+  }
+
+  function statusAllowed(status) {
+    if ((status === "SCHEDULED" || status === "LOCKED") && document.getElementById("fScheduled").checked) return true;
+    if (status === "NEEDS_ATTENTION" && document.getElementById("fAttention").checked) return true;
+    if ((status === "SKIPPED" || status === "CANCELLED") && document.getElementById("fOther").checked) return true;
+    return false;
+  }
+
+  function render() {
+    const agenda = document.getElementById("agenda");
+    agenda.innerHTML = "";
+
+    const includePast = document.getElementById("fPast").checked;
+    const rangeSel = document.querySelector('input[name=range]:checked').value;
+    const now = new Date();
+    let horizonEnd = null;
+    if (rangeSel !== "all") {
+      horizonEnd = new Date(now.getTime() + Number(rangeSel) * 86400000);
+    }
+
+    const items = allSessions
+      .filter(s => statusAllowed(s.status))
+      .filter(s => {
+        // NEEDS_ATTENTION/SKIPPED/CANCELLED have no startUtc -- always show those if selected.
+        if (!s.startUtc) return true;
+        const d = new Date(s.startUtc);
+        if (!includePast && d < now && s.status !== "NEEDS_ATTENTION") return false;
+        if (horizonEnd && d > horizonEnd) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        const da = a.startUtc || "9999", db = b.startUtc || "9999";
+        return da < db ? -1 : da > db ? 1 : 0;
+      });
+
+    if (!items.length) {
+      agenda.innerHTML = '<div class="empty">Nothing matches the current filters.</div>';
+      return;
+    }
+
+    const unplaced = items.filter(s => !s.startUtc);
+    const placed = items.filter(s => s.startUtc);
+
+    let lastDateKey = null;
+    let dayDiv = null;
+    const todayKey = now.toDateString();
+
+    placed.forEach(s => {
+      const d = new Date(s.startUtc);
+      const dateKey = d.toDateString();
+      if (dateKey !== lastDateKey) {
+        lastDateKey = dateKey;
+        dayDiv = document.createElement("div");
+        dayDiv.className = "day";
+        const heading = document.createElement("h2");
+        const label = d.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+        heading.innerHTML = `<span>${esc(label)}</span>` + (dateKey === todayKey ? '<span class="today-tag">Today</span>' : "");
+        dayDiv.appendChild(heading);
+        agenda.appendChild(dayDiv);
+      }
+      const row = document.createElement("div");
+      row.className = "session";
+      const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+      const endTime = s.endUtc ? new Date(s.endUtc).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : "";
+      row.innerHTML = `
+        <div class="time">${esc(time)}${endTime ? "–" + esc(endTime) : ""}</div>
+        <div class="title"><span class="subject">${esc(s.sourceSummary)}</span><span class="review">${esc(s.reviewName)}</span></div>
+        <span class="badge ${s.status}">${esc(s.status)}</span>`;
+      dayDiv.appendChild(row);
+    });
+
+    if (unplaced.length) {
+      const dayDiv2 = document.createElement("div");
+      dayDiv2.className = "day";
+      dayDiv2.innerHTML = '<h2><span>Not currently placed</span></h2>';
+      unplaced.forEach(s => {
+        const row = document.createElement("div");
+        row.className = "session";
+        row.innerHTML = `
+          <div class="time">&mdash;</div>
+          <div class="title"><span class="subject">${esc(s.sourceSummary)}</span><span class="review">${esc(s.reviewName)}</span>${s.needsAttentionReason ? `<div class="muted" style="font-size:12px;margin-top:2px;">${esc(s.needsAttentionReason)}</div>` : ""}</div>
+          <span class="badge ${s.status}">${esc(s.status)}</span>`;
+        dayDiv2.appendChild(row);
+      });
+      agenda.appendChild(dayDiv2);
+    }
+  }
+
+  document.getElementById("tokenInput").value = token();
+  if (token()) load();
+  else showStatus("Enter your STUDY_ADMIN_TOKEN above and click Connect.", false);
+})();
+    </script>
+</body>
+</html>

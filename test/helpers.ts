@@ -5,33 +5,41 @@ import { configSchema } from "../src/config/schema.js";
 import type { Config, SourceEvent, StudySession, Override, Assessment } from "../src/types.js";
 
 export function baseConfig(overrides?: (c: Config) => void): Config {
-  const raw = parseYaml(readFileSync(path.join(process.cwd(), "config/default.yaml"), "utf8"));
-  const config = configSchema.parse(raw) as Config;
-  if (overrides) overrides(config);
-  return config;
+    const raw = parseYaml(readFileSync(path.join(process.cwd(), "config/default.yaml"), "utf8"));
+    const config = configSchema.parse(raw) as Config;
+    // config/default.yaml ships with hyperplanning.enabled: true pointed at a
+    // real production university instance. Tests must never make live network
+    // calls as a side effect of building test config. Disable it here by
+    // default; a test that specifically wants Hyperplanning-enabled behavior
+    // (e.g. against a mocked fetch) can still flip it back on via `overrides`.
+    if (config.hyperplanning) {
+        config.hyperplanning = { ...config.hyperplanning, enabled: false };
+    }
+    if (overrides) overrides(config);
+    return config;
 }
 
 let counter = 0;
 function uniq(prefix: string): string {
-  counter += 1;
-  return `${prefix}-${counter}`;
+    counter += 1;
+    return `${prefix}-${counter}`;
 }
 
 export function makeSourceEvent(overrides: Partial<SourceEvent> = {}): SourceEvent {
-  return {
-    canonicalId: uniq("se"),
-    rawUid: uniq("uid"),
-    recurrenceKey: null,
-    summary: "Algorithms Lecture",
-    startUtc: "2026-09-08T07:00:00.000Z", // Tue 09:00 Europe/Paris (CEST)
-    endUtc: "2026-09-08T09:00:00.000Z",
-    sourceTimezone: "Europe/Paris",
-    wasFloating: false,
-    location: null,
-    firstSeenAt: "2026-09-01T00:00:00.000Z",
-    lastSeenRunId: "run-0",
-    ...overrides,
-  };
+    return {
+        canonicalId: uniq("se"),
+        rawUid: uniq("uid"),
+        recurrenceKey: null,
+        summary: "Algorithms Lecture",
+        startUtc: "2026-09-08T07:00:00.000Z", // Tue 09:00 Europe/Paris (CEST)
+        endUtc: "2026-09-08T09:00:00.000Z",
+        sourceTimezone: "Europe/Paris",
+        wasFloating: false,
+        location: null,
+        firstSeenAt: "2026-09-01T00:00:00.000Z",
+        lastSeenRunId: "run-0",
+        ...overrides,
+    };
 }
 
 export function makeAssessment(overrides: Partial<Assessment> = {}): Assessment {
@@ -49,23 +57,23 @@ export function makeAssessment(overrides: Partial<Assessment> = {}): Assessment 
 }
 
 export function makeOverride(overrides: Partial<Override> = {}): Override {
-  return {
-    id: uniq("override"),
-    studySessionId: "study-x-near",
-    action: "LOCK",
-    newStartUtc: null,
-    newEndUtc: null,
-    createdAt: "2026-09-05T00:00:00.000Z",
-    ...overrides,
-  };
+    return {
+        id: uniq("override"),
+        studySessionId: "study-x-near",
+        action: "LOCK",
+        newStartUtc: null,
+        newEndUtc: null,
+        createdAt: "2026-09-05T00:00:00.000Z",
+        ...overrides,
+    };
 }
 
 export function findSession(
-  sessions: StudySession[],
-  canonicalId: string,
-  reviewName: string
+    sessions: StudySession[],
+    canonicalId: string,
+    reviewName: string
 ): StudySession {
-  const s = sessions.find((x) => x.sourceCanonicalId === canonicalId && x.reviewName === reviewName);
-  if (!s) throw new Error(`session not found for ${canonicalId}/${reviewName}`);
-  return s;
+    const s = sessions.find((x) => x.sourceCanonicalId === canonicalId && x.reviewName === reviewName);
+    if (!s) throw new Error(`session not found for ${canonicalId}/${reviewName}`);
+    return s;
 }

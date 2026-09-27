@@ -8,45 +8,45 @@ import { regenerate } from "./pipeline.js";
 import { logger } from "./logging/logger.js";
 
 async function main() {
-  const configPath = process.env.STUDY_CONFIG_PATH ?? "./config/default.yaml";
-  const dbPath = process.env.STUDY_DB_PATH ?? "./data/study-scheduler.db";
-  const domain = process.env.STUDY_DOMAIN ?? "study-scheduler.local";
-  const port = Number(process.env.PORT ?? 3000);
-  const host = process.env.HOST ?? "0.0.0.0";
+    const configPath = process.env.STUDY_CONFIG_PATH ?? "./config/default.yaml";
+    const dbPath = process.env.STUDY_DB_PATH ?? "./data/study-scheduler.db";
+    const domain = process.env.STUDY_DOMAIN ?? "study-scheduler.local";
+    const port = Number(process.env.PORT ?? 3000);
+    const host = process.env.HOST ?? "0.0.0.0";
 
-  const feedToken = loadFeedToken();
-  const adminToken = process.env.STUDY_ADMIN_TOKEN ?? feedToken;
+    const feedToken = loadFeedToken();
+    const adminToken = process.env.STUDY_ADMIN_TOKEN ?? feedToken;
 
-  const fileConfig = loadConfig(configPath);
-  const db = openDatabase(dbPath);
-  const repo = new Repository(db);
-  const configHolder = new ConfigHolder(fileConfig, repo);
+    const fileConfig = loadConfig(configPath);
+    const db = openDatabase(dbPath);
+    const repo = new Repository(db);
+    const configHolder = new ConfigHolder(fileConfig, repo, logger);
 
-  logger.info({ configPath, dbPath, domain }, "Starting study-scheduler");
+    logger.info({ configPath, dbPath, domain }, "Starting study-scheduler");
 
-  // Startup regeneration, using the same pipeline as cron/manual.
-  const startupRun = await regenerate({ repo, configHolder, domain, logger }, "startup");
-  logger.info({ runId: startupRun.id, status: startupRun.status }, "Startup regeneration finished");
+    // Startup regeneration, using the same pipeline as cron/manual.
+    const startupRun = await regenerate({ repo, configHolder, domain, logger }, "startup");
+    logger.info({ runId: startupRun.id, status: startupRun.status }, "Startup regeneration finished");
 
-  const cronJob = startCron({ repo, configHolder, domain, logger });
+    const cronControl = startCron({ repo, configHolder, domain, logger });
 
-  const app = buildServer({ repo, configHolder, domain, logger, feedToken, adminToken });
+    const app = buildServer({ repo, configHolder, domain, logger, feedToken, adminToken, cronControl });
 
-  await app.listen({ port, host });
-  logger.info({ port, host }, "HTTP server listening");
+    await app.listen({ port, host });
+    logger.info({ port, host }, "HTTP server listening");
 
-  const shutdown = async (signal: string) => {
-    logger.info({ signal }, "Shutting down");
-    cronJob.stop();
-    await app.close();
-    db.close();
-    process.exit(0);
-  };
-  process.on("SIGINT", () => void shutdown("SIGINT"));
-  process.on("SIGTERM", () => void shutdown("SIGTERM"));
+    const shutdown = async (signal: string) => {
+        logger.info({ signal }, "Shutting down");
+        cronControl.job.stop();
+        await app.close();
+        db.close();
+        process.exit(0);
+    };
+    process.on("SIGINT", () => void shutdown("SIGINT"));
+    process.on("SIGTERM", () => void shutdown("SIGTERM"));
 }
 
 main().catch((err) => {
-  logger.error({ err: err instanceof Error ? err.stack : err }, "Fatal startup error");
-  process.exit(1);
+    logger.error({ err: err instanceof Error ? err.stack : err }, "Fatal startup error");
+    process.exit(1);
 });

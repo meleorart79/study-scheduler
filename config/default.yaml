@@ -16,7 +16,7 @@ sourceFeed:
   # fresh file (or POST /admin/regenerate) whenever your timetable changes.
   file: "./data/school-schedule.ics"
   # url: fetch a live feed over HTTP on every regeneration instead.
-  # url: "https://example.edu/timetable/my-calendar.ics"
+  url: "https://ent.univ-paris13.fr/ics/nSiFcKnt6ClUFaG"
   fetchTimeoutSeconds: 15
   maxResponseBytes: 5000000
 
