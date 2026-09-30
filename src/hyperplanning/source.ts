@@ -4,8 +4,8 @@ import type { Config } from "../types.js";
 import type { Logger } from "../logging/logger.js";
 import { createHyperplanningSession, fetchHyperplanningParameters } from "./session.js";
 import { resolvePromotionAndGroup } from "./resources.js";
-import { fetchTimetable } from "./timetable.js";
-import { fetchAcademicSessions } from "./sessions.js";
+import { fetchCourseList } from "./timetable.js";
+import { decodeHyperplanningSchedule } from "./decoder.js";
 
 export interface HyperplanningFetchResult { events: RawNormalizedEvent[]; hash: string; sessionId: number; promotion: string; group: string }
 
@@ -14,27 +14,20 @@ export async function fetchHyperplanningEvents(config: Config, logger?: Logger):
     if (!hp?.enabled) throw new Error("Hyperplanning is not enabled");
     const timeoutMs = hp.requestTimeoutSeconds * 1000;
     const session = await createHyperplanningSession(hp.url, timeoutMs);
-    if (session.redirected) {
-        // Not necessarily fatal (baseUrl is now derived from the resolved URL,
-        // see session.ts), but worth surfacing: a redirect on the configured
-        // invite URL can be an early sign the institution has moved its
-        // Hyperplanning host/path and hyperplanning.url should be updated.
-        logger?.warn(
-            { configuredUrl: hp.url, resolvedBaseUrl: session.baseUrl },
-            "Hyperplanning invite URL redirected; using the resolved URL for this run. " +
-            "Consider updating hyperplanning.url in config so future runs don't rely on the redirect."
-        );
-    }
     const period = await fetchHyperplanningParameters(session, session.start, timeoutMs);
     if (period.placesParJour !== 56) {
         throw new Error(`Unexpected Hyperplanning PlacesParJour=${period.placesParJour}; refusing to guess the grid`);
     }
 
     const { promotion, group } = await resolvePromotionAndGroup(session, hp.promotion, hp.group, timeoutMs);
-    const metadata = await fetchTimetable(session, group, hp.filter, timeoutMs);
-    const events = await fetchAcademicSessions(
-        session, group, hp.filter, period, metadata, config.timezone, timeoutMs,
+    logger?.info({ sessionId: session.sessionId, promotion: promotion.L, group: group.L }, "Hyperplanning session established");
+
+    const courses = await fetchCourseList(session, group, hp.filter, timeoutMs);
+    const decoded = decodeHyperplanningSchedule(
+        { ListeCours: courses },
+        { academicWeek1Monday: period.premierLundi, timezone: config.timezone, placesPerDay: period.placesParJour }
     );
+    const events = decoded.events;
 
     if (events.length < 1) throw new Error("Hyperplanning returned zero decoded events");
     const hash = createHash("sha256").update(JSON.stringify(events.map(e => ({

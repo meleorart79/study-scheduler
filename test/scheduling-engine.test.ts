@@ -99,6 +99,23 @@ describe("scheduling engine: classes as implicit blocks + buffer", () => {
     }
   });
 
+  it("keeps 30 min after the last class of a day (commute home)", () => {
+    const config = baseConfig((c) => {
+      c.reviews = [{ name: "near", targetOffsetDays: 1, flexibilityDays: 0 }];
+    });
+    const ev = makeSourceEvent(); // Tue 2026-09-08
+    const lastClass = makeSourceEvent({
+      canonicalId: "last-1",
+      summary: "Databases Lecture",
+      startUtc: "2026-09-09T06:30:00.000Z", // 08:30 Paris
+      endUtc: "2026-09-09T08:00:00.000Z",   // 10:00 Paris
+    });
+    const { sessions } = runScheduling(baseInput({ sourceEvents: [ev, lastClass], config }));
+    const near = findSession(sessions, ev.canonicalId, "near");
+    const gap = new Date(near.startUtc!).getTime() - new Date(lastClass.endUtc).getTime();
+    expect(gap).toBeGreaterThanOrEqual(30 * 60_000);
+  });
+
   it("never overlaps another study session and keeps buffer between study sessions", () => {
     // Two classes on the same day so their "near" reviews compete for the same window.
     const ev1 = makeSourceEvent({ canonicalId: "c1", summary: "Class A", startUtc: "2026-09-08T07:00:00.000Z", endUtc: "2026-09-08T09:00:00.000Z" });

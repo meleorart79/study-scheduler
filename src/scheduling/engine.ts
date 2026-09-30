@@ -17,6 +17,15 @@ import { buildPendingReviews, sessionId } from "./classType.js";
 interface OccupiedEntry {
   interval: Interval;
   kind: "class" | "study" | "blocked" | "blackout";
+  bufferAfterMinutes?: number;
+}
+
+function tooCloseToEntry(candidate: Interval, entry: OccupiedEntry, minBuffer: number): boolean {
+  const after = Math.max(minBuffer, entry.bufferAfterMinutes ?? 0);
+  return (
+    candidate.startMs < entry.interval.endMs + after * 60_000 &&
+    entry.interval.startMs < candidate.endMs + minBuffer * 60_000
+  );
 }
 
 interface Blackout {
@@ -74,10 +83,19 @@ export function runScheduling(input: SchedulingInput): SchedulingOutput {
   const results: StudySession[] = [];
   const occupied: OccupiedEntry[] = [];
 
+  const lastClassEndByDate = new Map<string, number>();
   for (const ev of sourceEvents) {
+    const date = localDateString(new Date(ev.startUtc), config.timezone);
+    const end = new Date(ev.endUtc).getTime();
+    if (end > (lastClassEndByDate.get(date) ?? 0)) lastClassEndByDate.set(date, end);
+  }
+  for (const ev of sourceEvents) {
+    const date = localDateString(new Date(ev.startUtc), config.timezone);
+    const isLast = new Date(ev.endUtc).getTime() === lastClassEndByDate.get(date);
     occupied.push({
       interval: toInterval(ev.startUtc, ev.endUtc),
       kind: "class",
+      bufferAfterMinutes: isLast ? config.grid.lastClassBufferMinutes : undefined,
     });
   }
   for (const bp of blockedPeriods) {
@@ -359,7 +377,7 @@ function isValidPlacement(
   const interval = toInterval(startIso, endIso);
   for (const entry of occupied) {
     if (entry.kind === "class" || entry.kind === "study") {
-      if (tooClose(interval, entry.interval, config.grid.minBufferMinutes)) return false;
+      if (tooCloseToEntry(interval, entry, config.grid.minBufferMinutes)) return false;
     } else {
       if (overlaps(interval, entry.interval)) return false;
     }
@@ -439,7 +457,7 @@ function pickFirstFitCandidate(
             let ok = true;
             for (const entry of occupied) {
                 if (entry.kind === "class" || entry.kind === "study") {
-                    if (tooClose(interval, entry.interval, config.grid.minBufferMinutes)) { ok = false; break; }
+                    if (tooCloseToEntry(interval, entry, config.grid.minBufferMinutes)) { ok = false; break; }
                 } else {
                     if (overlaps(interval, entry.interval)) { ok = false; break; }
                 }
@@ -476,7 +494,7 @@ function pickBestCandidate(
       let ok = true;
       for (const entry of occupied) {
         if (entry.kind === "class" || entry.kind === "study") {
-          if (tooClose(interval, entry.interval, config.grid.minBufferMinutes)) {
+          if (tooCloseToEntry(interval, entry, config.grid.minBufferMinutes)) {
             ok = false;
             break;
           }

@@ -47,6 +47,7 @@ export const configSchema = z.object({
         blockMinutes: z.number().int().positive().default(15),
         sessionMinutes: z.number().int().positive().default(90),
         minBufferMinutes: z.number().int().nonnegative().default(15),
+        lastClassBufferMinutes: z.number().int().nonnegative().default(30),
     }),
     reviews: z
         .array(

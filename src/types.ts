@@ -174,6 +174,7 @@ export interface Config {
         blockMinutes: number;
         sessionMinutes: number;
         minBufferMinutes: number;
+        lastClassBufferMinutes: number;
     };
     reviews: ReviewSpec[];
     workload: {

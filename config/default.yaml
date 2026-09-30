@@ -37,6 +37,7 @@ grid:
   blockMinutes: 15
   sessionMinutes: 90
   minBufferMinutes: 15
+  lastClassBufferMinutes: 30   # time to get home after the day's last class
 
 reviews:
   - name: near

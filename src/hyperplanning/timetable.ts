@@ -11,6 +11,34 @@ function labelFrom(value: unknown): string | null {
   return null;
 }
 
+interface RawTimetableResponse { ListeCours?: HyperplanningCourse[]; }
+
+export async function fetchCourseList(
+    session: HyperplanningSession,
+    resource: { L: string; N: string; G: number },
+    filter: string,
+    timeoutMs: number,
+): Promise<HyperplanningCourse[]> {
+    const data = await hyperplanningRequest<RawTimetableResponse>(session, "FonctionEmploiDuTemps", {
+        Signature: { Onglet: "DIPLOME.EDT.EDT_GRILLE", listeRecherche: [resource] },
+        data: {
+            GenrePeriodeEDT: 2,
+            GenreAffichageEDT: 0,
+            FiltreRessources: { _T: 26, V: filter },
+            AvecIndisponibilites: true,
+            AvecDomaineCours: true,
+            AvecDomainePere: false,
+            filterPlagesHoraires: false,
+            ignorerCoursAnnules: false,
+            avecInfosAppel: false,
+            Domaine: { _T: 8, V: "[6]" },
+        },
+    }, timeoutMs);
+
+    if (!Array.isArray(data?.ListeCours)) throw new Error("Hyperplanning timetable response has no ListeCours");
+    return data.ListeCours;
+}
+
 export function extractCourseMeta(course: HyperplanningCourse): HyperplanningCourseMeta {
   const entries = course.listeC ?? [];
   const one = (g: number) => entries.find(x => x.G === g)?.C;
