@@ -59,6 +59,8 @@ export function buildServer(deps: ServerDeps): FastifyInstance {
         reply.header("Content-Type", "text/html; charset=utf-8");
         return reply.send(planUiHtml);
     });
+    
+    app.get("/admin/source-events", async () => repo.getAllSourceEvents());
 
     app.get<{ Querystring: { token?: string } }>("/feeds/study.ics", async (req, reply) => {
         return serveCachedIcs(reply, req.headers["if-none-match"], req.query.token, {
