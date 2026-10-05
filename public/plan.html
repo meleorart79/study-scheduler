@@ -364,6 +364,16 @@
                 outline-offset: -2px
             }
 
+            /* university classes: grey, drawn underneath study sessions */
+            .ev.cls {
+                z-index: 0;
+                opacity: .9
+            }
+
+            .ev:not(.cls) {
+                z-index: 1
+            }
+
         .nowline {
             position: absolute;
             left: 0;
@@ -454,6 +464,10 @@
                 outline-offset: -1px
             }
 
+            .chip.cls {
+                opacity: .9
+            }
+
         .more {
             font-size: 11px;
             color: var(--muted);
@@ -496,6 +510,7 @@
         <label style="color:var(--muted);font-size:13px;"><input type="checkbox" id="fScheduled" checked> Scheduled/Locked</label>
         <label style="color:var(--muted);font-size:13px;"><input type="checkbox" id="fAttention" checked> Needs attention</label>
         <label style="color:var(--muted);font-size:13px;"><input type="checkbox" id="fOther"> Skipped/Cancelled</label>
+        <label style="color:var(--muted);font-size:13px;"><input type="checkbox" id="fClasses" checked> Classes</label>
         <input id="tokenInput" type="password" placeholder="STUDY_ADMIN_TOKEN">
         <button id="saveTokenBtn">Connect</button>
         <button id="reloadBtn">Reload</button>
@@ -526,234 +541,258 @@
     <script>
 // @ts-nocheck
 (function () {
-  const HOUR0 = 8, HOUR1 = 24; // visible grid: 08:00–24:00
-  const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
-  function token() { return localStorage.getItem("sa_token") || ""; }
-  function setToken(t) { localStorage.setItem("sa_token", t); }
-  function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
-  function showStatus(msg, ok) {
-    const el = document.getElementById("status");
-    el.className = "status " + (ok ? "ok" : "err"); el.textContent = msg; el.style.display = "block";
-    if (ok) setTimeout(() => { if (el.textContent === msg) el.style.display = "none"; }, 3000);
-  }
-  async function api(path) {
-    const res = await fetch(path, { headers: { "Authorization": "Bearer " + token() } });
-    let data = null; try { data = await res.json(); } catch (e) {}
-    if (!res.ok) throw new Error((data && data.error) || (res.status + " " + res.statusText));
-    return data;
-  }
+          const HOUR0 = 8, HOUR1 = 24; // visible grid: 08:00–24:00
+          const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+          function token() { return localStorage.getItem("sa_token") || ""; }
+          function setToken(t) { localStorage.setItem("sa_token", t); }
+          function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+          function showStatus(msg, ok) {
+            const el = document.getElementById("status");
+            el.className = "status " + (ok ? "ok" : "err"); el.textContent = msg; el.style.display = "block";
+            if (ok) setTimeout(() => { if (el.textContent === msg) el.style.display = "none"; }, 3000);
+          }
+          async function api(path) {
+            const res = await fetch(path, { headers: { "Authorization": "Bearer " + token() } });
+            let data = null; try { data = await res.json(); } catch (e) {}
+            if (!res.ok) throw new Error((data && data.error) || (res.status + " " + res.statusText));
+            return data;
+          }
 
-  // ---- state ----
-  let allSessions = [];
-  let view = localStorage.getItem("sa_plan_view") || "week";
-  let anchor = new Date();
+          // ---- state ----
+          let allSessions = [];
+          let allClasses = [];
+          let view = localStorage.getItem("sa_plan_view") || "week";
+          let anchor = new Date();
 
-  // ---- date helpers (local time) ----
-  const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
-  const sameDay = (a, b) => a.toDateString() === b.toDateString();
-  const mondayOf = d => addDays(startOfDay(d), -((d.getDay() + 6) % 7));
-  const fmtTime = d => d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+          // ---- date helpers (local time) ----
+          const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+          const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+          const sameDay = (a, b) => a.toDateString() === b.toDateString();
+          const mondayOf = d => addDays(startOfDay(d), -((d.getDay() + 6) % 7));
+          const fmtTime = d => d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
 
-  // ---- subject colours: same subject => same hue, regardless of CM/TD/TP tag ----
-  function subjectOf(s) { return String(s.sourceSummary || "").replace(/\s*\((CM|TD|TP)\)\s*/i, " ").trim(); }
-  const hueCache = {};
-  function hueFor(subject) {
-    if (hueCache[subject] === undefined) {
-      let h = 0; for (const ch of subject) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-      hueCache[subject] = (h * 47) % 360;
-    }
-    return hueCache[subject];
-  }
-  function colorStyle(s) {
-    const h = hueFor(subjectOf(s));
-    return `--c:hsl(${h} 65% 62%);--c-bg:hsl(${h} 45% 20%)`;
-  }
-  const lockMark = s => s.status === "LOCKED" ? "🔒 " : "";
+          // ---- subject colours: same subject => same hue, regardless of CM/TD/TP tag ----
+          function subjectOf(s) { return String(s.sourceSummary || "").replace(/\s*\((CM|TD|TP)\)\s*/i, " ").trim(); }
+          const hueCache = {};
+          function hueFor(subject) {
+            if (hueCache[subject] === undefined) {
+              let h = 0; for (const ch of subject) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+              hueCache[subject] = (h * 47) % 360;
+            }
+            return hueCache[subject];
+          }
+          function colorStyle(s) {
+            const h = hueFor(subjectOf(s));
+            return `--c:hsl(${h} 65% 62%);--c-bg:hsl(${h} 45% 20%)`;
+          }
+          const lockMark = s => s.status === "LOCKED" ? "🔒 " : "";
 
-  // ---- filters ----
-  function statusAllowed(status) {
-    if ((status === "SCHEDULED" || status === "LOCKED") && document.getElementById("fScheduled").checked) return true;
-    if (status === "NEEDS_ATTENTION" && document.getElementById("fAttention").checked) return true;
-    if ((status === "SKIPPED" || status === "CANCELLED") && document.getElementById("fOther").checked) return true;
-    return false;
-  }
-  const filtered = () => allSessions.filter(s => statusAllowed(s.status));
-  const byStart = (a, b) => { const x = a.startUtc || "9999", y = b.startUtc || "9999"; return x < y ? -1 : x > y ? 1 : 0; };
+          // ---- classes (grey) ----
+          // For a darker look use: "--c:#555;--c-bg:#000"
+          const classStyle = "--c:#8b93a3;--c-bg:#2a2e38";
+          const showClasses = () => document.getElementById("fClasses").checked;
+          const visibleClasses = () => (showClasses() ? allClasses : []);
 
-  // ---- load ----
-  async function load() {
-    try {
-      allSessions = await api("/admin/sessions");
-      render();
-      showStatus("Loaded " + allSessions.length + " sessions.", true);
-    } catch (e) { showStatus("Failed to load: " + e.message, false); }
-  }
+          // ---- filters ----
+          function statusAllowed(status) {
+            if ((status === "SCHEDULED" || status === "LOCKED") && document.getElementById("fScheduled").checked) return true;
+            if (status === "NEEDS_ATTENTION" && document.getElementById("fAttention").checked) return true;
+            if ((status === "SKIPPED" || status === "CANCELLED") && document.getElementById("fOther").checked) return true;
+            return false;
+          }
+          const filtered = () => allSessions.filter(s => statusAllowed(s.status));
+          const byStart = (a, b) => { const x = a.startUtc || "9999", y = b.startUtc || "9999"; return x < y ? -1 : x > y ? 1 : 0; };
 
-  // ---- events ----
-  document.getElementById("saveTokenBtn").addEventListener("click", () => { setToken(document.getElementById("tokenInput").value.trim()); load(); });
-  document.getElementById("reloadBtn").addEventListener("click", load);
-  ["fScheduled","fAttention","fOther","fPast"].forEach(id => document.getElementById(id).addEventListener("change", render));
-  document.querySelectorAll("input[name=range]").forEach(r => r.addEventListener("change", render));
-  document.querySelectorAll("#viewSeg button").forEach(b => b.addEventListener("click", () => setView(b.dataset.v)));
-  document.getElementById("prevBtn").addEventListener("click", () => step(-1));
-  document.getElementById("nextBtn").addEventListener("click", () => step(1));
-  document.getElementById("todayBtn").addEventListener("click", () => { anchor = new Date(); render(); });
-  function setView(v) { view = v; localStorage.setItem("sa_plan_view", v); render(); }
-  function step(dir) {
-    if (view === "week") anchor = addDays(anchor, 7 * dir);
-    else { anchor = new Date(anchor.getFullYear(), anchor.getMonth() + dir, 1); }
-    render();
-  }
+          // ---- load ----
+          async function load() {
+            try {
+              const [s, c] = await Promise.all([api("/admin/sessions"), api("/admin/source-events")]);
+              allSessions = s; allClasses = c;
+              render();
+              showStatus("Loaded " + s.length + " sessions, " + c.length + " classes.", true);
+            } catch (e) { showStatus("Failed to load: " + e.message, false); }
+          }
 
-  // ---- render dispatcher ----
-  function render() {
-    document.querySelectorAll("#viewSeg button").forEach(b => b.classList.toggle("active", b.dataset.v === view));
-    document.getElementById("calNav").style.display = view === "list" ? "none" : "flex";
-    document.getElementById("listOpts").style.display = view === "list" ? "flex" : "none";
-    document.getElementById("main").classList.toggle("wide", view !== "list");
-    const agenda = document.getElementById("agenda");
-    agenda.innerHTML = "";
-    document.getElementById("legend").innerHTML = "";
-    document.getElementById("unplaced").innerHTML = "";
-    if (view === "list") return renderList(agenda);
-    if (view === "week") renderWeek(agenda); else renderMonth(agenda);
-    renderLegend();
-    renderUnplaced();
-  }
+          // ---- events ----
+          document.getElementById("saveTokenBtn").addEventListener("click", () => { setToken(document.getElementById("tokenInput").value.trim()); load(); });
+          document.getElementById("reloadBtn").addEventListener("click", load);
+          ["fScheduled","fAttention","fOther","fPast","fClasses"].forEach(id => document.getElementById(id).addEventListener("change", render));
+          document.querySelectorAll("input[name=range]").forEach(r => r.addEventListener("change", render));
+          document.querySelectorAll("#viewSeg button").forEach(b => b.addEventListener("click", () => setView(b.dataset.v)));
+          document.getElementById("prevBtn").addEventListener("click", () => step(-1));
+          document.getElementById("nextBtn").addEventListener("click", () => step(1));
+          document.getElementById("todayBtn").addEventListener("click", () => { anchor = new Date(); render(); });
+          function setView(v) { view = v; localStorage.setItem("sa_plan_view", v); render(); }
+          function step(dir) {
+            if (view === "week") anchor = addDays(anchor, 7 * dir);
+            else { anchor = new Date(anchor.getFullYear(), anchor.getMonth() + dir, 1); }
+            render();
+          }
 
-  // ---- legend + unplaced (calendar views) ----
-  function renderLegend() {
-    const subjects = [...new Set(filtered().filter(s => s.startUtc).map(subjectOf))].sort();
-    document.getElementById("legend").innerHTML = subjects.map(sub =>
-      `<span><span class="swatch" style="background:hsl(${hueFor(sub)} 65% 62%)"></span>${esc(sub)}</span>`).join("")
-      + (filtered().some(s => s.status === "LOCKED") ? '<span>🔒 locked</span>' : "");
-  }
-  function renderUnplaced() {
-    const list = filtered().filter(s => !s.startUtc).sort(byStart);
-    if (!list.length) return;
-    const box = document.getElementById("unplaced");
-    box.innerHTML = '<div class="day"><h2><span>Not currently placed</span></h2></div>';
-    const wrap = box.firstChild;
-    list.forEach(s => {
-      const row = document.createElement("div"); row.className = "session";
-      row.innerHTML = `<div class="time">&mdash;</div>
-        <div class="title"><span class="swatch" style="background:hsl(${hueFor(subjectOf(s))} 65% 62%)"></span><span class="subject">${esc(s.sourceSummary)}</span><span class="review">${esc(s.reviewName)}</span>${s.needsAttentionReason ? `<div class="muted" style="font-size:12px;margin-top:2px;">${esc(s.needsAttentionReason)}</div>` : ""}</div>
-        <span class="badge ${s.status}">${esc(s.status)}</span>`;
-      wrap.appendChild(row);
-    });
-  }
+          // ---- render dispatcher ----
+          function render() {
+            document.querySelectorAll("#viewSeg button").forEach(b => b.classList.toggle("active", b.dataset.v === view));
+            document.getElementById("calNav").style.display = view === "list" ? "none" : "flex";
+            document.getElementById("listOpts").style.display = view === "list" ? "flex" : "none";
+            document.getElementById("main").classList.toggle("wide", view !== "list");
+            const agenda = document.getElementById("agenda");
+            agenda.innerHTML = "";
+            document.getElementById("legend").innerHTML = "";
+            document.getElementById("unplaced").innerHTML = "";
+            if (view === "list") return renderList(agenda);
+            if (view === "week") renderWeek(agenda); else renderMonth(agenda);
+            renderLegend();
+            renderUnplaced();
+          }
 
-  // ---- week view ----
-  function renderWeek(agenda) {
-    const mon = mondayOf(anchor), sun = addDays(mon, 6), today = new Date();
-    document.getElementById("rangeLabel").textContent =
-      mon.toLocaleDateString(undefined, { day: "numeric", month: "short" }) + " – " + sun.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
-    const days = Array.from({ length: 7 }, (_, i) => addDays(mon, i));
-    const hoursPx = (HOUR1 - HOUR0) * 40;
-    const placed = filtered().filter(s => s.startUtc && s.endUtc);
+          // ---- legend + unplaced (calendar views) ----
+          function renderLegend() {
+            const subjects = [...new Set(filtered().filter(s => s.startUtc).map(subjectOf))].sort();
+            document.getElementById("legend").innerHTML = subjects.map(sub =>
+              `<span><span class="swatch" style="background:hsl(${hueFor(sub)} 65% 62%)"></span>${esc(sub)}</span>`).join("")
+              + (filtered().some(s => s.status === "LOCKED") ? '<span>🔒 locked</span>' : "")
+              + (showClasses() ? '<span><span class="swatch" style="background:#8b93a3"></span>Classes</span>' : "");
+          }
+          function renderUnplaced() {
+            const list = filtered().filter(s => !s.startUtc).sort(byStart);
+            if (!list.length) return;
+            const box = document.getElementById("unplaced");
+            box.innerHTML = '<div class="day"><h2><span>Not currently placed</span></h2></div>';
+            const wrap = box.firstChild;
+            list.forEach(s => {
+              const row = document.createElement("div"); row.className = "session";
+              row.innerHTML = `<div class="time">&mdash;</div>
+                <div class="title"><span class="swatch" style="background:hsl(${hueFor(subjectOf(s))} 65% 62%)"></span><span class="subject">${esc(s.sourceSummary)}</span><span class="review">${esc(s.reviewName)}</span>${s.needsAttentionReason ? `<div class="muted" style="font-size:12px;margin-top:2px;">${esc(s.needsAttentionReason)}</div>` : ""}</div>
+                <span class="badge ${s.status}">${esc(s.status)}</span>`;
+              wrap.appendChild(row);
+            });
+          }
 
-    let head = '<div></div>' + days.map((d, i) =>
-      `<div class="${sameDay(d, today) ? "istoday" : ""}">${DAYS[i]}<span class="dnum">${d.getDate()}</span></div>`).join("");
-    let gut = ""; for (let h = HOUR0; h <= HOUR1; h++) gut += `<span style="top:${(h - HOUR0) * 40}px">${String(h % 24).padStart(2, "0")}:00</span>`;
+          // ---- week view ----
+          function renderWeek(agenda) {
+            const mon = mondayOf(anchor), sun = addDays(mon, 6), today = new Date();
+            document.getElementById("rangeLabel").textContent =
+              mon.toLocaleDateString(undefined, { day: "numeric", month: "short" }) + " – " + sun.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+            const days = Array.from({ length: 7 }, (_, i) => addDays(mon, i));
+            const hoursPx = (HOUR1 - HOUR0) * 40;
+            const placed = filtered().filter(s => s.startUtc && s.endUtc);
+            const classes = visibleClasses();
 
-    const cols = days.map((d, i) => {
-      const evs = placed.filter(s => sameDay(new Date(s.startUtc), d)).map(s => {
-        const a = new Date(s.startUtc), b = new Date(s.endUtc);
-        const startMin = a.getHours() * 60 + a.getMinutes(), endMin = Math.min(b.getHours() * 60 + b.getMinutes() || 1440, 1440);
-        const top = Math.max(0, (startMin - HOUR0 * 60) / 60 * 40), h = Math.max(18, (endMin - startMin) / 60 * 40 - 2);
-        return `<div class="ev ${s.status}" style="${colorStyle(s)};top:${top}px;height:${h}px" title="${esc(s.sourceSummary)} · ${esc(s.reviewName)} · ${fmtTime(a)}–${fmtTime(b)} · ${s.status}">
-          <b>${lockMark(s)}${esc(subjectOf(s))}</b><small>${fmtTime(a)}–${fmtTime(b)} · ${esc(s.reviewName)}</small></div>`;
-      }).join("");
-      let now = "";
-      if (sameDay(d, today)) {
-        const m = today.getHours() * 60 + today.getMinutes();
-        if (m >= HOUR0 * 60) now = `<div class="nowline" style="top:${(m - HOUR0 * 60) / 60 * 40}px"></div>`;
-      }
-      return `<div class="col ${sameDay(d, today) ? "istoday" : ""} ${i >= 5 ? "weekend" : ""}" style="height:${hoursPx}px">${evs}${now}</div>`;
-    }).join("");
+            let head = '<div></div>' + days.map((d, i) =>
+              `<div class="${sameDay(d, today) ? "istoday" : ""}">${DAYS[i]}<span class="dnum">${d.getDate()}</span></div>`).join("");
+            let gut = ""; for (let h = HOUR0; h <= HOUR1; h++) gut += `<span style="top:${(h - HOUR0) * 40}px">${String(h % 24).padStart(2, "0")}:00</span>`;
 
-    agenda.innerHTML = `<div class="cal"><div class="wk-head">${head}</div>
-      <div class="wk-body"><div class="gutter" style="height:${hoursPx}px">${gut}</div>${cols}</div></div>`;
-    // scroll to ~now (or morning) on first draw
-    const cal = agenda.querySelector(".cal");
-    cal.style.maxHeight = "calc(100vh - 220px)";
-    const m = today.getHours() * 60;
-    cal.scrollTop = Math.max(0, (Math.max(m, HOUR0 * 60) - HOUR0 * 60) / 60 * 40 - 80);
-  }
+            const cols = days.map((d, i) => {
+              const clsEvs = classes.filter(c => sameDay(new Date(c.startUtc), d)).map(c => {
+                const a = new Date(c.startUtc), b = new Date(c.endUtc);
+                const startMin = a.getHours() * 60 + a.getMinutes(), endMin = Math.min(b.getHours() * 60 + b.getMinutes() || 1440, 1440);
+                const top = Math.max(0, (startMin - HOUR0 * 60) / 60 * 40), h = Math.max(18, (endMin - startMin) / 60 * 40 - 2);
+                return `<div class="ev cls" style="${classStyle};top:${top}px;height:${h}px" title="${esc(c.summary)}${c.location ? " · " + esc(c.location) : ""} · ${fmtTime(a)}–${fmtTime(b)}">
+                  <b>${esc(c.summary)}</b><small>${fmtTime(a)}–${fmtTime(b)}${c.location ? " · " + esc(c.location) : ""}</small></div>`;
+              }).join("");
+              const evs = placed.filter(s => sameDay(new Date(s.startUtc), d)).map(s => {
+                const a = new Date(s.startUtc), b = new Date(s.endUtc);
+                const startMin = a.getHours() * 60 + a.getMinutes(), endMin = Math.min(b.getHours() * 60 + b.getMinutes() || 1440, 1440);
+                const top = Math.max(0, (startMin - HOUR0 * 60) / 60 * 40), h = Math.max(18, (endMin - startMin) / 60 * 40 - 2);
+                return `<div class="ev ${s.status}" style="${colorStyle(s)};top:${top}px;height:${h}px" title="${esc(s.sourceSummary)} · ${esc(s.reviewName)} · ${fmtTime(a)}–${fmtTime(b)} · ${s.status}">
+                  <b>${lockMark(s)}${esc(subjectOf(s))}</b><small>${fmtTime(a)}–${fmtTime(b)} · ${esc(s.reviewName)}</small></div>`;
+              }).join("");
+              let now = "";
+              if (sameDay(d, today)) {
+                const m = today.getHours() * 60 + today.getMinutes();
+                if (m >= HOUR0 * 60) now = `<div class="nowline" style="top:${(m - HOUR0 * 60) / 60 * 40}px"></div>`;
+              }
+              return `<div class="col ${sameDay(d, today) ? "istoday" : ""} ${i >= 5 ? "weekend" : ""}" style="height:${hoursPx}px">${clsEvs}${evs}${now}</div>`;
+            }).join("");
 
-  // ---- month view ----
-  function renderMonth(agenda) {
-    const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1), today = new Date();
-    document.getElementById("rangeLabel").textContent = first.toLocaleDateString(undefined, { month: "long", year: "numeric" });
-    const gridStart = mondayOf(first);
-    const placed = filtered().filter(s => s.startUtc).sort(byStart);
-    let cells = "";
-    for (let i = 0; i < 42; i++) {
-      const d = addDays(gridStart, i);
-      if (i >= 35 && d.getMonth() !== first.getMonth()) break; // skip a fully-empty 6th row
-      const evs = placed.filter(s => sameDay(new Date(s.startUtc), d));
-      const shown = evs.slice(0, 3).map(s =>
-        `<span class="chip ${s.status}" style="${colorStyle(s)}" title="${esc(s.sourceSummary)} · ${esc(s.reviewName)} · ${s.status}">${lockMark(s)}${fmtTime(new Date(s.startUtc))} ${esc(subjectOf(s))}</span>`).join("");
-      const more = evs.length > 3 ? `<div class="more">+${evs.length - 3} more</div>` : "";
-      cells += `<div class="mo-cell ${d.getMonth() !== first.getMonth() ? "other" : ""} ${sameDay(d, today) ? "istoday" : ""}" data-date="${d.toISOString()}">
-        <span class="dn">${d.getDate()}</span>${shown}${more}</div>`;
-    }
-    agenda.innerHTML = `<div class="cal"><div class="mo-head">${DAYS.map(n => `<div>${n}</div>`).join("")}</div><div class="mo-grid">${cells}</div></div>`;
-    agenda.querySelectorAll(".mo-cell").forEach(c => c.addEventListener("click", () => { anchor = new Date(c.dataset.date); setView("week"); }));
-  }
+            agenda.innerHTML = `<div class="cal"><div class="wk-head">${head}</div>
+              <div class="wk-body"><div class="gutter" style="height:${hoursPx}px">${gut}</div>${cols}</div></div>`;
+            // scroll to ~now (or morning) on first draw
+            const cal = agenda.querySelector(".cal");
+            cal.style.maxHeight = "calc(100vh - 220px)";
+            const m = today.getHours() * 60;
+            cal.scrollTop = Math.max(0, (Math.max(m, HOUR0 * 60) - HOUR0 * 60) / 60 * 40 - 80);
+          }
 
-  // ---- list view (unchanged behaviour) ----
-  function renderList(agenda) {
-    const includePast = document.getElementById("fPast").checked;
-    const rangeSel = document.querySelector("input[name=range]:checked").value;
-    const now = new Date();
-    const horizonEnd = rangeSel !== "all" ? new Date(now.getTime() + Number(rangeSel) * 86400000) : null;
-    const items = filtered().filter(s => {
-      if (!s.startUtc) return true;
-      const d = new Date(s.startUtc);
-      if (!includePast && d < now && s.status !== "NEEDS_ATTENTION") return false;
-      if (horizonEnd && d > horizonEnd) return false;
-      return true;
-    }).sort(byStart);
-    if (!items.length) { agenda.innerHTML = '<div class="empty">Nothing matches the current filters.</div>'; return; }
-    const unplaced = items.filter(s => !s.startUtc), placed = items.filter(s => s.startUtc);
-    let lastKey = null, dayDiv = null; const todayKey = now.toDateString();
-    placed.forEach(s => {
-      const d = new Date(s.startUtc), key = d.toDateString();
-      if (key !== lastKey) {
-        lastKey = key; dayDiv = document.createElement("div"); dayDiv.className = "day";
-        const h = document.createElement("h2");
-        h.innerHTML = `<span>${esc(d.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" }))}</span>` + (key === todayKey ? '<span class="today-tag">Today</span>' : "");
-        dayDiv.appendChild(h); agenda.appendChild(dayDiv);
-      }
-      const row = document.createElement("div"); row.className = "session";
-      const end = s.endUtc ? fmtTime(new Date(s.endUtc)) : "";
-      row.innerHTML = `<div class="time">${esc(fmtTime(d))}${end ? "–" + esc(end) : ""}</div>
-        <div class="title"><span class="swatch" style="background:hsl(${hueFor(subjectOf(s))} 65% 62%)"></span><span class="subject">${lockMark(s)}${esc(s.sourceSummary)}</span><span class="review">${esc(s.reviewName)}</span></div>
-        <span class="badge ${s.status}">${esc(s.status)}</span>`;
-      dayDiv.appendChild(row);
-    });
-    if (unplaced.length) {
-      const d2 = document.createElement("div"); d2.className = "day";
-      d2.innerHTML = '<h2><span>Not currently placed</span></h2>';
-      unplaced.forEach(s => {
-        const row = document.createElement("div"); row.className = "session";
-        row.innerHTML = `<div class="time">&mdash;</div>
-          <div class="title"><span class="subject">${esc(s.sourceSummary)}</span><span class="review">${esc(s.reviewName)}</span>${s.needsAttentionReason ? `<div class="muted" style="font-size:12px;margin-top:2px;">${esc(s.needsAttentionReason)}</div>` : ""}</div>
-          <span class="badge ${s.status}">${esc(s.status)}</span>`;
-        d2.appendChild(row);
-      });
-      agenda.appendChild(d2);
-    }
-  }
+          // ---- month view ----
+          function renderMonth(agenda) {
+            const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1), today = new Date();
+            document.getElementById("rangeLabel").textContent = first.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+            const gridStart = mondayOf(first);
+            const placed = filtered().filter(s => s.startUtc).sort(byStart);
+            const classes = visibleClasses();
+            let cells = "";
+            for (let i = 0; i < 42; i++) {
+              const d = addDays(gridStart, i);
+              if (i >= 35 && d.getMonth() !== first.getMonth()) break; // skip a fully-empty 6th row
+              const evs = placed.filter(s => sameDay(new Date(s.startUtc), d));
+              const sessChips = evs.map(s =>
+                `<span class="chip ${s.status}" style="${colorStyle(s)}" title="${esc(s.sourceSummary)} · ${esc(s.reviewName)} · ${s.status}">${lockMark(s)}${fmtTime(new Date(s.startUtc))} ${esc(subjectOf(s))}</span>`);
+              const clsChips = classes.filter(c => sameDay(new Date(c.startUtc), d))
+                .sort((a, b) => a.startUtc < b.startUtc ? -1 : 1)
+                .map(c => `<span class="chip cls" style="${classStyle}" title="${esc(c.summary)}">${fmtTime(new Date(c.startUtc))} ${esc(c.summary)}</span>`);
+              // study sessions first so a busy class day can't push them behind "+N more"
+              const chips = [...sessChips, ...clsChips];
+              const shown = chips.slice(0, 4).join("");
+              const more = chips.length > 4 ? `<div class="more">+${chips.length - 4} more</div>` : "";
+              cells += `<div class="mo-cell ${d.getMonth() !== first.getMonth() ? "other" : ""} ${sameDay(d, today) ? "istoday" : ""}" data-date="${d.toISOString()}">
+                <span class="dn">${d.getDate()}</span>${shown}${more}</div>`;
+            }
+            agenda.innerHTML = `<div class="cal"><div class="mo-head">${DAYS.map(n => `<div>${n}</div>`).join("")}</div><div class="mo-grid">${cells}</div></div>`;
+            agenda.querySelectorAll(".mo-cell").forEach(c => c.addEventListener("click", () => { anchor = new Date(c.dataset.date); setView("week"); }));
+          }
 
-  // refresh the "now" line every minute
-  setInterval(() => { if (view === "week") render(); }, 60000);
+          // ---- list view (study sessions only) ----
+          function renderList(agenda) {
+            const includePast = document.getElementById("fPast").checked;
+            const rangeSel = document.querySelector("input[name=range]:checked").value;
+            const now = new Date();
+            const horizonEnd = rangeSel !== "all" ? new Date(now.getTime() + Number(rangeSel) * 86400000) : null;
+            const items = filtered().filter(s => {
+              if (!s.startUtc) return true;
+              const d = new Date(s.startUtc);
+              if (!includePast && d < now && s.status !== "NEEDS_ATTENTION") return false;
+              if (horizonEnd && d > horizonEnd) return false;
+              return true;
+            }).sort(byStart);
+            if (!items.length) { agenda.innerHTML = '<div class="empty">Nothing matches the current filters.</div>'; return; }
+            const unplaced = items.filter(s => !s.startUtc), placed = items.filter(s => s.startUtc);
+            let lastKey = null, dayDiv = null; const todayKey = now.toDateString();
+            placed.forEach(s => {
+              const d = new Date(s.startUtc), key = d.toDateString();
+              if (key !== lastKey) {
+                lastKey = key; dayDiv = document.createElement("div"); dayDiv.className = "day";
+                const h = document.createElement("h2");
+                h.innerHTML = `<span>${esc(d.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" }))}</span>` + (key === todayKey ? '<span class="today-tag">Today</span>' : "");
+                dayDiv.appendChild(h); agenda.appendChild(dayDiv);
+              }
+              const row = document.createElement("div"); row.className = "session";
+              const end = s.endUtc ? fmtTime(new Date(s.endUtc)) : "";
+              row.innerHTML = `<div class="time">${esc(fmtTime(d))}${end ? "–" + esc(end) : ""}</div>
+                <div class="title"><span class="swatch" style="background:hsl(${hueFor(subjectOf(s))} 65% 62%)"></span><span class="subject">${lockMark(s)}${esc(s.sourceSummary)}</span><span class="review">${esc(s.reviewName)}</span></div>
+                <span class="badge ${s.status}">${esc(s.status)}</span>`;
+              dayDiv.appendChild(row);
+            });
+            if (unplaced.length) {
+              const d2 = document.createElement("div"); d2.className = "day";
+              d2.innerHTML = '<h2><span>Not currently placed</span></h2>';
+              unplaced.forEach(s => {
+                const row = document.createElement("div"); row.className = "session";
+                row.innerHTML = `<div class="time">&mdash;</div>
+                  <div class="title"><span class="subject">${esc(s.sourceSummary)}</span><span class="review">${esc(s.reviewName)}</span>${s.needsAttentionReason ? `<div class="muted" style="font-size:12px;margin-top:2px;">${esc(s.needsAttentionReason)}</div>` : ""}</div>
+                  <span class="badge ${s.status}">${esc(s.status)}</span>`;
+                d2.appendChild(row);
+              });
+              agenda.appendChild(d2);
+            }
+          }
 
-  document.getElementById("tokenInput").value = token();
-  render();
-  if (token()) load(); else showStatus("Enter your STUDY_ADMIN_TOKEN above and click Connect.", false);
+          // refresh the "now" line every minute
+          setInterval(() => { if (view === "week") render(); }, 60000);
+
+          document.getElementById("tokenInput").value = token();
+          render();
+          if (token()) load(); else showStatus("Enter your STUDY_ADMIN_TOKEN above and click Connect.", false);
 })();
     </script>
 </body>
