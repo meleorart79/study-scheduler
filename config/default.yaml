@@ -49,8 +49,8 @@ reviews:
     anySlot: false
 
 workload:
-  preferredDailyMinutes: 270
-  maxDailyMinutes: 360
+  preferredDailyMinutes: 360
+  maxDailyMinutes: null
   classLoadAdjustment:
     enabled: true
     # Was 30/30 -- with unweighted class hours, a normal school day could
@@ -65,7 +65,7 @@ workload:
   # days "closer" to a review's target date than an empty day, so sessions
   # cluster together during busy school weeks instead of each one spreading
   # out independently. Set to 0 to disable clustering preference.
-  compactionBonusDays: 1
+  compactionBonusDays: 0
 
 # Weights class time by type before it's fed into classLoadAdjustment above.
 # Matched case-insensitively against "{summary} {location}" from the source

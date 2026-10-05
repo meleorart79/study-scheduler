@@ -185,6 +185,7 @@ async function runOnce(deps: PipelineDeps, trigger: RunTrigger): Promise<Schedul
             .update(scheduleFileHash)
             .update(JSON.stringify(config))
             .update(JSON.stringify(overrides))
+            .update(today)
             .digest("hex");
 
         const lastSignature = repo.getKv("last_run_signature");
