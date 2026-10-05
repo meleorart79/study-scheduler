@@ -8,6 +8,7 @@ const EXAM_SCHEDULE = [
         startTime: null,
         endTime: null,
         title: "Partiels 1 — 19–23 October",
+        blackoutDays: 4
     },
     {
         id: "s1-partiels-2",
@@ -18,6 +19,7 @@ const EXAM_SCHEDULE = [
         startTime: null,
         endTime: null,
         title: "Partiels 2 — 14–18 December",
+        blackoutDays: 7
     },
     {
         id: "s2-partiels-1",
@@ -28,6 +30,7 @@ const EXAM_SCHEDULE = [
         startTime: null,
         endTime: null,
         title: "Partiels 1 — 15–19 March",
+        blackoutDays: 4
     },
     {
         id: "s2-partiels-2",
@@ -38,6 +41,7 @@ const EXAM_SCHEDULE = [
         startTime: null,
         endTime: null,
         title: "Partiels 2 — 24–28 May",
+        blackoutDays: 7
     },
 ];
 

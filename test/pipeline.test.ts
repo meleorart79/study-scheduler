@@ -10,13 +10,15 @@ import { regenerate, ConcurrentRegenerationError } from "../src/pipeline.js";
 import { logger } from "../src/logging/logger.js";
 import { baseConfig } from "./helpers.js";
 
+const ymd = new Date(Date.now() + 2 * 86_400_000).toISOString().slice(0, 10).replace(/-/g, "");
+
 const SAMPLE_ICS = `BEGIN:VCALENDAR
 VERSION:2.0
 BEGIN:VEVENT
 UID:pipeline-test-1@example.com
 SUMMARY:Algorithms Lecture
-DTSTART;TZID=Europe/Paris:20260908T090000
-DTEND;TZID=Europe/Paris:20260908T110000
+DTSTART;TZID=Europe/Paris:${ymd}T090000
+DTEND;TZID=Europe/Paris:${ymd}T110000
 END:VEVENT
 END:VCALENDAR`;
 

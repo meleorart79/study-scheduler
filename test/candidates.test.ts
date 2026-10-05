@@ -14,7 +14,7 @@ describe("candidate generation: weekday windows", () => {
             const startMin = minutesOfDay(c.startUtc, config.timezone);
             const endMin = minutesOfDay(c.endUtc, config.timezone);
             const inMorning = startMin >= 8 * 60 + 30 && endMin <= 11 * 60 + 45;
-            const inAfternoon = startMin >= 12 * 60 + 30 && endMin <= 23 * 60 + 45;
+            const inAfternoon = startMin >= 12 * 60 + 30 && endMin <= 22 * 60 + 30;
             expect(inMorning || inAfternoon).toBe(true);
         }
     });
@@ -22,9 +22,8 @@ describe("candidate generation: weekday windows", () => {
     it("covers both weekday windows on a 15-minute grid, 90-minute sessions", () => {
         // 08:30-11:45 = 195 min, last start 10:15 -> 8 starts.
         // 12:30-23:45 = 675 min, last start 22:15 -> 40 starts.
-        expect(candidates.length).toBe(48);
-        expect(minutesOfDay(candidates[0]!.startUtc, config.timezone)).toBe(8 * 60 + 30);
-        expect(minutesOfDay(candidates[candidates.length - 1]!.startUtc, config.timezone)).toBe(22 * 60 + 15);
+        expect(candidates.length).toBe(43);
+        expect(minutesOfDay(candidates[candidates.length - 1]!.startUtc, config.timezone)).toBe(21 * 60);
     });
 });
 
@@ -37,7 +36,7 @@ describe("candidate generation: weekend windows", () => {
             const startMin = minutesOfDay(c.startUtc, config.timezone);
             const endMin = minutesOfDay(c.endUtc, config.timezone);
             const inMorning = startMin >= 8 * 60 && endMin <= 12 * 60;
-            const inEvening = startMin >= 16 * 60 && endMin <= 23 * 60 + 45;
+            const inEvening = startMin >= 14 * 60 && endMin <= 23 * 60;
             expect(inMorning || inEvening).toBe(true);
         }
     });
@@ -46,18 +45,18 @@ describe("candidate generation: weekend windows", () => {
         for (const c of candidates) {
             const startMin = minutesOfDay(c.startUtc, config.timezone);
             const endMin = minutesOfDay(c.endUtc, config.timezone);
-            expect(startMin < 12 * 60 || startMin >= 16 * 60).toBe(true);
+            expect(startMin < 12 * 60 || startMin >= 14 * 60).toBe(true);
             expect(endMin).toBeGreaterThan(startMin);
         }
     });
 
-    it("the 16:00-23:45 window fits 26 fifteen-minute-aligned starts", () => {
+    it("14:00 to 21:30, every 15 min", () => {
         const eveningStarts = candidates
             .map((c) => minutesOfDay(c.startUtc, config.timezone))
-            .filter((m) => m >= 16 * 60);
-        expect(eveningStarts.length).toBe(26);
-        expect(Math.min(...eveningStarts)).toBe(16 * 60);
-        expect(Math.max(...eveningStarts)).toBe(22 * 60 + 15);
+            .filter((m) => m >= 14 * 60);
+        expect(eveningStarts.length).toBe(31);          // 14:00 to 21:30, every 15 min
+        expect(Math.min(...eveningStarts)).toBe(14 * 60);
+        expect(Math.max(...eveningStarts)).toBe(21 * 60 + 30);
     });
 
     it("correctly identifies Sunday as a weekend day too", () => {

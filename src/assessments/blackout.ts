@@ -15,6 +15,7 @@ export function toDomainAssessments(raw: RawAssessment[]): Assessment[] {
         startTime: a.startTime,
         endTime: a.endTime,
         title: a.title,
+        blackoutDays: a.blackoutDays ?? null,
     }));
 }
 
@@ -34,14 +35,13 @@ export function computeExamBlackouts(
     config: Config
 ): (BlockedPeriod & { assessmentId: string })[] {
     const protectedTypes = new Set(config.assessments.protectedTypes);
-    const blackoutDays = config.examProtection.blackoutDays;
-
+    const defaultBlackoutDays = config.examProtection.blackoutDays;
     const result: (BlockedPeriod & { assessmentId: string })[] = [];
 
     for (const a of assessments) {
         if (!protectedTypes.has(a.type)) continue;
-
-        const windowStartDate = addDaysToDateString(a.date, -blackoutDays);
+        const days = a.blackoutDays ?? defaultBlackoutDays;   // moved inside the loop
+        const windowStartDate = addDaysToDateString(a.date, -days);
         const startUtc = localMidnightUtc(windowStartDate, ASSESSMENT_TIMEZONE);
 
         let endUtc: Date;

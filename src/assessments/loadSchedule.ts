@@ -34,6 +34,7 @@ const assessmentRawSchema = z
       .optional()
       .default(null),
     title: z.string().min(1),
+    blackoutDays: z.number().int().nonnegative().nullable().optional(),
   })
   .refine((a) => !a.endDate || a.endDate >= a.date, {
     message: "endDate must be on or after date",
@@ -44,6 +45,7 @@ const holidayRawSchema = z.object({
   /** Floating local datetime "YYYY-MM-DDTHH:mm:ss", interpreted as Europe/Paris. */
   startDate: z.string().min(1),
   endDate: z.string().min(1),
+  mode: z.enum(["rest", "work"]).default("rest"),
 });
 
 const scheduleModuleSchema = z.object({

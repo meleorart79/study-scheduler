@@ -202,17 +202,18 @@ async function runOnce(deps: PipelineDeps, trigger: RunTrigger): Promise<Schedul
         // --- 5. Assessments ---
         const assessments = toDomainAssessments(schedule.examSchedule);
         const examBlackouts = computeExamBlackouts(assessments, config);
-        const holidayPeriods = computeHolidayPeriods(schedule.holidays);
 
         // --- 6. Scheduling engine (pure) ---
         const prevSessions = repo.getAllStudySessions();
         // Static + recurringBlockedPeriods (basketball), suppressed during exam
         // blackouts/holidays; holidayPeriods are also appended directly so they
         // block ALL scheduling (classes/study/basketball), not just basketball.
-        const blockedPeriods = blockedPeriodsFromConfig(config, horizonStartDate, horizonEndDate, [
-            ...examBlackouts,
+        const restHolidays = computeHolidayPeriods(schedule.holidays.filter(h => h.mode === "rest"));
+        const holidayPeriods = computeHolidayPeriods(schedule.holidays.filter((h) => h.mode === "rest"));
+        const blockedPeriods = [
+            ...blockedPeriodsFromConfig(config, horizonStartDate, horizonEndDate, [...examBlackouts, ...holidayPeriods]),
             ...holidayPeriods,
-        ]);
+        ];
 
         const visibleCommitments = visibleCommitmentPeriods(config, horizonStartDate, horizonEndDate, [
             ...examBlackouts,

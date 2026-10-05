@@ -158,6 +158,10 @@ export const configSchema = z.object({
         cronTime: timeString.default("05:00"),
         cronTimezone: z.string().default("Europe/Paris"),
     }),
+    subjectReviews: z.array(z.object({
+        pattern: z.string().min(1),
+        reviewNames: z.array(z.string()),
+    })).default([]),
 }).refine((c) => c.hyperplanning?.enabled || !!c.sourceFeed.url || !!c.sourceFeed.file, {
     message: "configure Hyperplanning or at least one ICS source",
 });

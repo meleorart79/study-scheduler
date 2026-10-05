@@ -44,6 +44,7 @@ export interface Assessment {
     startTime: string | null;
     endTime: string | null;
     title: string;
+    blackoutDays?: number | null;
 }
 
 export type ReviewName = string; // e.g. "near" | "far", driven by config
@@ -273,6 +274,7 @@ export interface Config {
         cronTime: string; // "HH:mm"
         cronTimezone: string;
     };
+    subjectReviews: { pattern: string; reviewNames: string[] }[];
 }
 
 export type RunStatus = "SUCCESS" | "NO_OP" | "FAILED" | "RUNNING";

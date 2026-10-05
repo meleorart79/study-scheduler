@@ -69,11 +69,13 @@ export function buildPendingReviews(sourceEvents: SourceEvent[], config: Config)
   const allReviewNames = config.reviews.map((r) => r.name);
 
   function pushReviews(ev: SourceEvent, names: string[]) {
-    for (const name of names) {
-      const idx = reviewIndexByName.get(name);
-      if (idx === undefined) continue; // unknown review name in config; skip defensively
-      pending.push({ ev, reviewIndex: idx, id: sessionId(ev.canonicalId, name) });
-    }
+      const rule = config.subjectReviews.find((r) => getPattern(r.pattern).test(ev.summary));
+      const allowed = rule ? names.filter((n) => rule.reviewNames.includes(n)) : names;
+      for (const name of allowed) {
+          const idx = reviewIndexByName.get(name);
+          if (idx === undefined) continue;
+          pending.push({ ev, reviewIndex: idx, id: sessionId(ev.canonicalId, name) });
+      }
   }
 
   if (!config.classTypeReviews.enabled) {

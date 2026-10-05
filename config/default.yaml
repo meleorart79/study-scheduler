@@ -25,13 +25,13 @@ studyWindows:
     - start: "08:30"
       end: "11:45"
     - start: "12:30"
-      end: "23:45"
+      end: "22:30"
 
   weekends:
     - start: "08:00"
       end: "12:00"
-    - start: "16:00"
-      end: "23:45"
+    - start: "14:00"
+      end: "23:00"
 
 grid:
   blockMinutes: 15
@@ -44,13 +44,13 @@ reviews:
     targetOffsetDays: 1
     flexibilityDays: 1
   - name: far
-    # First-fit: take the first free slot anywhere in the horizon instead
-    # of aiming for a target offset/flexibility window.
-    anySlot: true
+    targetOffsetDays: 5
+    flexibilityDays: 3
+    anySlot: false
 
 workload:
-  preferredDailyMinutes: 180
-  maxDailyMinutes: null
+  preferredDailyMinutes: 270
+  maxDailyMinutes: 360
   classLoadAdjustment:
     enabled: true
     # Was 30/30 -- with unweighted class hours, a normal school day could
@@ -59,8 +59,8 @@ workload:
     # Now paired with classWeighting below (TD/TP count for less), so a
     # smaller reduction-per-hour plus a higher floor keeps some room open
     # on most days instead of forcing everything outward.
-    minutesReducedPerClassHour: 20
-    floorMinutes: 60
+    minutesReducedPerClassHour: 0
+    floorMinutes: 90
   # A day that already has a study session on it is treated as this many
   # days "closer" to a review's target date than an empty day, so sessions
   # cluster together during busy school weeks instead of each one spreading
@@ -147,6 +147,10 @@ examProtection:
 horizon:
   lookaheadDays: 120
   lookbackDays: 21
+
+subjectReviews:
+  - { pattern: "Anglais|Méthodologie|Bureautique", reviewNames: ["near"] }
+  
 
 regeneration:
   cronTime: "05:00"
