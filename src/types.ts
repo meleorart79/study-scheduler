@@ -274,7 +274,9 @@ export interface Config {
         cronTime: string; // "HH:mm"
         cronTimezone: string;
     };
-    subjectReviews: { pattern: string; reviewNames: string[] }[];
+    subjectReviews: { 
+        pattern: string; reviewNames: string[] 
+    }[];
 }
 
 export type RunStatus = "SUCCESS" | "NO_OP" | "FAILED" | "RUNNING";
